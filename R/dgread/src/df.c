@@ -106,6 +106,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "df.h"
 
 char dfMagicNumber[] = { 0x20, 0x10, 0x30, 0x60 };
