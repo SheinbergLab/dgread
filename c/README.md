@@ -29,3 +29,9 @@ To read a test .dgz file:
 For compression, the library depends on the following open source libs:
 * [libz](http://zlib.net/)
 * [liblz4](https://lz4.github.io/lz4/)
+
+On Ubunutu, these can be installed as:
+
+```
+sudo apt install liblz4-dev libz-dev
+```
