@@ -2,7 +2,7 @@
 
 # Installation
 
-From the directory above the repository:
+From this directory:
 ```
 R CMD INSTALL dgread
 ```
