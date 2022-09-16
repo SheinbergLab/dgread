@@ -1,4 +1,4 @@
-# dgread_R
+# dgread for R
 
 # Installation
 
