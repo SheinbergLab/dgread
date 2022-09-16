@@ -1,0 +1,43 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HEAD></HEAD><HTML><BODY>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Package dgread:  Contents">
+<param name="Local" value="00Index.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Package dgread:  R objects">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="dg.fromString">
+<param name="Local" value="dg.fromString.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="dg.get">
+<param name="Local" value="dg.get.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="read.dg,dg.read">
+<param name="Local" value="read.dgz.html">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Package dgread:  Titles">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Bring dg from tcl to R">
+<param name="Local" value="dg.get.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Convert memory buffer to dynamic group">
+<param name="Local" value="dg.fromString.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+<param name="Name" value="Read DLSH .dg/.dgz data files">
+<param name="Local" value="read.dgz.html">
+</OBJECT>
+</UL>
+</UL>
+</BODY></HTML>

@@ -1,0 +1,2 @@
+PKG_CFLAGS=-Ic:/home/sheinb/src/lablib -Ic:/usr/local/include
+PKG_LIBS=c:/usr/local/lib/zdll64.lib

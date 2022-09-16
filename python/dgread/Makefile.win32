@@ -1,0 +1,30 @@
+CC               = cl
+CFLAGS           = -W3 -DCRTAPI1=_cdecl -DCRTAPI2=_cdecl -nologo \
+		   -D_WINNT -D_WIN32_WINNT=0x0400 -DWINVER=0x0400 \
+		   -D_CRT_SECURE_NO_WARNINGS
+CVARS            = -DWIN32 -D_WIN32 -D_MT -D_DLL -MD 
+
+INCLUDES	 = -Ic:/python27/include -I./ 
+
+LINK             = link
+LINKDEBUG        = -debug:full -debugtype:cv
+LDFLAGS          = /NODEFAULTLIB:LIBCMT /INCREMENTAL:NO /PDB:NONE \
+		   /RELEASE /NOLOGO /LTCG /MACHINE:IX86 -entry:_DllMainCRTStartup@12  -dll /LIBPATH:"c:/python27/libs"
+PYLIB            = python27.lib
+ZLIB		 = zdll.lib
+
+OBJ	= .obj
+EXE	= .exe
+
+DGREAD_OBJS = dgread.obj df.obj dfutils.obj dynio.obj flip.obj lz4utils.obj lz4.obj lz4frame.obj lz4hc.obj xxhash.obj
+
+DLLS = dgread.pyd
+
+all:	$(DLLS)
+
+dgread.pyd:	$(DGREAD_OBJS)
+	$(LINK) $(LDFLAGS) -out:dgread.pyd -def:dgread27.def $(DGREAD_OBJS) $(PYLIB) $(ZLIB)
+
+
+%$(OBJ): %.c
+	$(CC) -c $(CFLAGS) $(CVARS) $(INCLUDES) $<

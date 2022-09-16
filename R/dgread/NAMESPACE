@@ -1,0 +1,2 @@
+useDynLib(dgread)
+export(read.dgz,read.dg,dg.read,dg.fromString,dg.get,dg.write)

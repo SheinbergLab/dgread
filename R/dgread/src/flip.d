@@ -1,0 +1,1 @@
+flip.o: flip.c

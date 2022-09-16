@@ -1,0 +1,84 @@
+<html><head><title>Bring dg from tcl to R</title>
+<link rel="stylesheet" type="text/css" href="Rchm.css">
+</head>
+<body>
+
+<table width="100%"><tr><td>dg.get(dgread)</td><td align="right">R Documentation</td></tr></table><object type="application/x-oleobject" classid="clsid:1e2a7bd0-dab9-11d0-b93a-00c04fc99f9e">
+<param name="keyword" value="R:   dg.get">
+<param name="keyword" value=" Bring dg from tcl to R">
+</object>
+
+
+<h2>Bring dg from tcl to R</h2>
+
+
+<h3>Description</h3>
+
+<p>
+Dynamic groups are found and imported from the tcl to R
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+dg.get(groupname, convert.underscore=FALSE)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>groupname</code></td>
+<td>
+a dg in the tcltk interpreter</td></tr>
+<tr valign="top"><td><code>convert.underscore</code></td>
+<td>
+Convert <code>"_"</code> in dgz dynlist names
+to <code>"."</code> in R names?</td></tr>
+</table>
+
+<h3>Details</h3>
+
+<p>
+dg.get looks for an existing group in the tcl environment and if it
+exists, it writes it to a temp file (using dg_write) and reads it back
+(using dg.read).  The result is an R list.
+</p>
+
+
+<h3>Value</h3>
+
+<p>
+a list</p>
+
+<h3>Author(s)</h3>
+
+<p>
+David Sheinberg
+</p>
+
+
+<h3>References</h3>
+
+<p>
+DLSH documentation
+</p>
+
+
+<h3>See Also</h3>
+
+
+
+
+<h3>Examples</h3>
+
+<pre>
+  dg.get("group1")
+</pre>
+
+
+
+<hr><div align="center">[Package <em>dgread</em> version 1.01 <a href="00Index.html">Index]</a></div>
+
+</body></html>

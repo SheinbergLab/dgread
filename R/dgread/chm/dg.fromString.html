@@ -1,0 +1,86 @@
+<html><head><title>Convert memory buffer to dynamic group</title>
+<link rel="stylesheet" type="text/css" href="Rchm.css">
+</head>
+<body>
+
+<table width="100%"><tr><td>dg.fromString(dgread)</td><td align="right">R Documentation</td></tr></table><object type="application/x-oleobject" classid="clsid:1e2a7bd0-dab9-11d0-b93a-00c04fc99f9e">
+<param name="keyword" value="R:   dg.fromString">
+<param name="keyword" value=" Convert memory buffer to dynamic group">
+</object>
+
+
+<h2>Convert memory buffer to dynamic group</h2>
+
+
+<h3>Description</h3>
+
+<p>
+Given a character string, this function converts that into a SEXP
+representation representing the corresponding dynamic group from dlsh
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+dg.fromString(s,convert.underscore=FALSE)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>s</code></td>
+<td>
+a character vector continaing the string representation of
+the dg</td></tr>
+<tr valign="top"><td><code>convert.underscore</code></td>
+<td>
+Convert <code>"_"</code> in dgz dynlist names
+to <code>"."</code> in R names?</td></tr>
+</table>
+
+<h3>Details</h3>
+
+<p>
+A dynamic group that is converted to a string from dlsh using the
+dg_toString function can be loaded into R (using file or socket
+connections) and the buffer can be converted to an equivalent list in R.
+</p>
+
+
+<h3>Value</h3>
+
+<p>
+a list</p>
+
+<h3>Author(s)</h3>
+
+<p>
+David Sheinberg
+</p>
+
+
+<h3>References</h3>
+
+<p>
+DLSH documentation
+</p>
+
+
+<h3>See Also</h3>
+
+
+
+
+<h3>Examples</h3>
+
+<pre>
+
+</pre>
+
+
+
+<hr><div align="center">[Package <em>dgread</em> version 1.01 <a href="00Index.html">Index]</a></div>
+
+</body></html>

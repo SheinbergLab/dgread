@@ -1,0 +1,9 @@
+Package: dgread
+Version: 1.08
+Date: 2011-12-13
+Title: dgread package
+Maintainer: David Sheinberg <David_Sheinberg@brown.edu>
+Author: David Sheinberg <David_Sheinberg@brown.edu>
+Depends: R (>= 2.0.1), tcltk
+Description: This package allows dg/dgz files stored from the DLSH analysis system to be read into R from file or by memory
+License: GPL (>= 2)

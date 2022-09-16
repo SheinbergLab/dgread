@@ -1,0 +1,2 @@
+dgread.dll: dgread.c
+	R CMD SHLIB dgread.c dfutils.c dynio.c flip.c df.c lz4utils.c lz4.c lz4hc.c lz4frame.c xxhash.c

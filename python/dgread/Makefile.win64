@@ -1,0 +1,30 @@
+CC               = cl
+CFLAGS           = -W3 -DCRTAPI1=_cdecl -DCRTAPI2=_cdecl -nologo \
+		   -D_WINNT -D_WIN32_WINNT=0x0400 -DWINVER=0x0400 \
+		   -D_CRT_SECURE_NO_WARNINGS
+CVARS            = -DWIN32 -D_WIN32 -D_MT -D_DLL -MD 
+
+INCLUDES	 = -I/Users/sheinb/anaconda3/include -I./ 
+
+LINK             = link
+LINKDEBUG        = -debug:full -debugtype:cv
+LDFLAGS          = /NODEFAULTLIB:LIBCMT /INCREMENTAL:NO /PDB:NONE \
+		   /RELEASE /NOLOGO /LTCG /MACHINE:X64 -dll
+PYLIB            = python35.lib
+ZLIB		 = zlib64.lib
+
+OBJ	= .obj
+EXE	= .exe
+
+DGREAD_OBJS = dgread.obj df.obj dfutils.obj dynio.obj flip.obj
+
+DLLS = dgread.dll
+
+all:	$(DLLS)
+
+dgread.dll:	$(DGREAD_OBJS)
+	$(LINK) $(LDFLAGS) -out:dgread.pyd -def:dgread.def $(DGREAD_OBJS) $(PYLIB) $(ZLIB)
+
+
+%$(OBJ): %.c
+	$(CC) -c $(CFLAGS) $(CVARS) $(INCLUDES) $<
