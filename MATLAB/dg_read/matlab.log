@@ -1,0 +1,342 @@
+
+» g = dg_read('s_sc_cl_01.051');
+
+ans = 
+
+1x22 struct array with fields:
+    list
+    vals
+
+» g(1)
+
+ans = 
+
+    list: 'e_pre'
+    vals: {77x1 cell}
+
+» g(2)
+
+ans = 
+
+    list: 'e_names'
+    vals: [256x20 char]
+
+» g(2).vals
+
+ans =
+
+Reserved000         
+Reserved001         
+File I/O            
+User Interaction    
+State System Trace  
+Parameter Set       
+Reserved006         
+Reserved007         
+Reserved008         
+Reserved009         
+Reserved010         
+Reserved011         
+Reserved012         
+Reserved013         
+Reserved014         
+Reserved015         
+Time Stamped Spike  
+DIS-1 Hardware Spike
+Name                
+Start Obs Period    
+End Obs Period      
+ISI                 
+Trial Type          
+Obs Period Type     
+EM Log              
+Fixspot             
+EM Params           
+Stimulus            
+Pattern             
+Stimulus Type       
+Sample              
+Probe               
+Cue                 
+Target              
+Distractor          
+Sound Event         
+Fixation            
+Response            
+Saccade             
+Decide              
+EOT                 
+Abort               
+Reward              
+Delay               
+Punish              
+Physio Params       
+Mri                 
+Stimulator Signal   
+System048           
+System049           
+System050           
+System051           
+System052           
+.
+.
+.
+System125           
+System126           
+System127           
+Target Name         
+Scene Name          
+User002             
+User003             
+User004             
+.
+.
+.
+User127             
+
+» g(1)
+
+ans = 
+
+    list: 'e_pre'
+    vals: {77x1 cell}
+
+» g(1).vals{10}
+
+ans = 
+
+    [3x1 double]
+    '50'
+
+» g(1).vals{10}{1}
+
+ans =
+
+     5
+     1
+     0
+
+» g(1).vals{10}{2}
+
+ans =
+
+50
+
+» g(2)
+
+ans = 
+
+    list: 'e_names'
+    vals: [256x20 char]
+
+» g(3)
+
+ans = 
+
+    list: 'e_types'
+    vals: {115x1 cell}
+
+» g(3).vals{10}
+
+ans =
+
+    19
+    26
+    22
+    26
+    21
+    28
+    29
+   128
+   129
+    26
+    37
+    28
+    40
+    42
+    35
+    21
+    20
+
+» g(4)
+
+ans = 
+
+    list: 'e_subtypes'
+    vals: {115x1 cell}
+
+» g(4).vals{11}
+
+ans =
+
+     0
+     0
+     0
+     1
+     0
+     1
+     0
+     0
+     0
+     1
+     0
+     0
+     1
+     0
+     0
+     1
+     1
+     1
+
+» g(5).vals{11}
+
+ans =
+
+           0
+           2
+           2
+           2
+         153
+         446
+         446
+         446
+         446
+         446
+         800
+         810
+         810
+         812
+         813
+        1025
+        1155
+        1556
+
+» g(6)
+
+ans = 
+
+    list: 'e_params'
+    vals: {115x1 cell}
+
+» g(6).vals{11}
+
+ans = 
+
+    [2x1 double]
+    [2x1 double]
+    [         1]
+    [4x1 double]
+              []
+    [         0]
+    [3x1 double]
+    '433004'
+    ''
+    [4x1 double]
+              []
+              []
+    [         0]
+    [        40]
+              []
+    [       130]
+              []
+              []
+
+» g(6).vals{11}{1}
+
+ans =
+
+     7
+   100
+
+» g(6).vals{11}{2}
+
+ans =
+
+  117.1297
+  110.9927
+
+» g(6).vals{11}{5}
+
+ans =
+
+   Empty matrix: 0-by-1
+
+
+» g(6).vals{11}{14}
+
+ans =
+
+    40
+
+» g(7)
+
+ans = 
+
+    list: 'ems'
+    vals: {115x1 cell}
+
+» g(7).vals{11}
+
+ans = 
+
+    [           5]
+    [312x1 double]
+    [312x1 double]
+
+» mean(g(7).vals{11}{2})
+
+ans =
+
+  298.8814
+
+» plot(g(7).vals{11}{2})
+» g(8)
+
+ans = 
+
+    list: 'spk_types'
+    vals: {115x1 cell}
+
+» g(9)
+
+ans = 
+
+    list: 'spk_channels'
+    vals: {115x1 cell}
+
+» g(10)
+
+ans = 
+
+    list: 'spk_times'
+    vals: {115x1 cell}
+
+» g(11)
+
+ans = 
+
+    list: 'obs_times'
+    vals: [115x1 double]
+
+» g(12)
+
+ans = 
+
+    list: 'id'
+    vals: [100x1 double]
+
+» g(12).vals
+
+ans =
+
+     0
+     1
+     2
+     .
+     .
+     .
+    97
+    98
+    99
+
+» 

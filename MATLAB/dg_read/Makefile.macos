@@ -1,0 +1,5 @@
+SRC=$(wildcard '*.c')
+
+dg_read.mexmaci64: $(SRC) 
+	mex $^ $@ -lz
+
