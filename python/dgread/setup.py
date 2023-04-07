@@ -2,9 +2,9 @@
 
 from distutils.core import setup
 from distutils.extension import Extension
-from Cython.Distutils import build_ext
 import numpy as np                           # <---- New line
 
 MOD = 'dgread'
-setup(name=MOD, version='1.0',ext_modules=[
-        Extension(MOD, sources=['dgread.c'], include_dirs=['./',np.get_include()], library_dirs=['/usr/local/lib'], libraries=['dg'])])
+sources=['dgread.c','df.c','dfutils.c','dynio.c','flip.c','lz4utils.c']
+setup(name=MOD, version='1.01',ext_modules=[
+        Extension(MOD, sources=sources, include_dirs=['./',np.get_include()], library_dirs=['/usr/local/lib'])])
