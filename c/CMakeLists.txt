@@ -7,7 +7,7 @@ if(APPLE)
 	add_definitions(-Dunix)
 	include_directories( /usr/local/include )
 elseif(WIN32)
-
+	include_directories ( c:/usr/local/include )
 else()
 	set (CMAKE_INSTALL_PREFIX /usr/local)
 	add_definitions(-Dunix -DLINUX -DUSE_INTERP_RESULT -fPIC)
