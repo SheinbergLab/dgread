@@ -441,11 +441,11 @@ DgreadMethods[] =
 
 int init_numpy()
 {
-  import_array();
+  import_array1(0);
   return 1;
 }
 
-int PyInit_dgread()
+PyMODINIT_FUNC PyInit_dgread()
 {
   init_numpy();
   return(PyModule_Create(&dgread_def));
@@ -455,7 +455,7 @@ int PyInit_dgread()
 void initdgread()
 {
   Py_InitModule("dgread", DgreadMethods);
-  import_array();
+  import_array1(0);
 }
 
 #endif
