@@ -1,4 +1,5 @@
 MANIFEST.in
+README.md
 df.c
 df.h
 dfutils.c
@@ -15,6 +16,8 @@ lz4hc.c
 lz4hc.h
 lz4opt.h
 lz4utils.c
+pyproject.toml
+setup.cfg
 setup.py
 utilc.h
 xxhash.c
@@ -24,4 +27,5 @@ zlib.h
 dgread.egg-info/PKG-INFO
 dgread.egg-info/SOURCES.txt
 dgread.egg-info/dependency_links.txt
+dgread.egg-info/requires.txt
 dgread.egg-info/top_level.txt

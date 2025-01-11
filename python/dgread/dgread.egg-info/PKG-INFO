@@ -1,3 +1,8 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: dgread
 Version: 1.0.2
+Requires-Python: >=3.6
+Requires-Dist: build>=0.9.0
+Requires-Dist: numpy>=1.19.5
+Requires-Dist: setuptools>=59.6.0
+Requires-Dist: twine>=3.8.0
