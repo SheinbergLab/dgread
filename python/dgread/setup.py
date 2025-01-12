@@ -5,7 +5,7 @@ import platform
 import numpy as np
 
 MOD = 'dgread'
-version = "1.0.2"
+version = "1.0.3"
 sources=['dgread.c','df.c','dfutils.c','dynio.c','flip.c','lz4utils.c', 'lz4frame.c', 'lz4hc.c', 'lz4.c', 'xxhash.c']
 library_dirs = ['/usr/local/lib']
 
