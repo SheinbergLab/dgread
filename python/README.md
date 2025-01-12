@@ -1,17 +1,14 @@
 # dgread for python
 
 # Installation
-
-## MacOS and Linux
-
 From inside the dgread directory:
+
+## If using `uv`
 ```
-python setup.py install
+uv run python -m build
 ```
 
-## Windows
-
-From inside the dgread directory:
+## In an existing python environment
 ```
-python setup_win.py install
+python -m build
 ```
