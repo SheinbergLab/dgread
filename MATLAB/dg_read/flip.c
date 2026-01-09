@@ -1,15 +1,16 @@
 /************************************************************************/
 /*                                                                      */
-/*                              utilc.c                                 */
+/*                              flip.c                                  */
 /*                    (general utility routines)                        */
 /*                                                                      */
 /*  This module includes functions for:                                 */
-/*         Flipping bytes                                               */
+/*         Flipping bytes for endianness conversion                     */
 /************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "utilc.h"
 
 /*
  * Routines for flipping bytes
@@ -55,7 +56,8 @@ flipdouble(double oldd)
 }
 
 
-long
+/* Return type is 'int' to match utilc.h declaration */
+int
 fliplong(int oldl)
 {
   int newl;

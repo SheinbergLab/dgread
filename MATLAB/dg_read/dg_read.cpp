@@ -1,18 +1,28 @@
 /*=================================================================
  * dg_read.cpp
  *
- * Read a dgz file into matlab and create a matlab structure with
+ * Read a dgz file into MATLAB and create a MATLAB structure with
  * fields corresponding to individual elements.
+ *
+ * Updated for modern C++ MEX API (R2018a+)
+ *
+ * Usage: data = dg_read('filename.dg')
+ *        data = dg_read('filename.dgz')
+ *        data = dg_read('filename.lz4')
  *
  *=================================================================*/
 
 #include "mex.hpp"
 #include "mexAdapter.hpp"
 
-#include <string.h>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <memory>
+
 #include <df.h>
 
-#ifdef WINDOWNS
+#ifdef WINDOWS
 #define ZLIB_DLL
 #define _WINDOWS
 #else
@@ -25,24 +35,8 @@
 using namespace matlab::data;
 using matlab::mex::ArgumentList;
 
-/*****************************************************************************
- *
- * FUNCTION
- *    tclReadDynGroup
- *
- * ARGS
- *    Tcl Args
- *
- * TCL FUNCTION
- *    dg_read
- *
- * DESCRIPTION
- *    Reads in a dynGroup
- *
- *****************************************************************************/
-
-/* ===========================================================================
- * Uncompress input to output then close both files.
+/*
+ * Helper: Uncompress gzipped input to output file
  */
 static void gz_uncompress(gzFile in, FILE *out)
 {
@@ -54,257 +48,305 @@ static void gz_uncompress(gzFile in, FILE *out)
         if (len < 0) return;
         if (len == 0) break;
 
-        if ((int)fwrite(buf, 1, (unsigned)len, out) != len) {
-	  return;
-	}
+        if (static_cast<int>(fwrite(buf, 1, static_cast<unsigned>(len), out)) != len) {
+            return;
+        }
     }
 }
 
-static FILE *uncompress_file(char *filename, char tempname[256])
+/*
+ * Helper: Uncompress a gzipped file to a temp file, return FILE* to temp
+ */
+static FILE *uncompress_file(const char *filename, char tempname[256])
 {
-  FILE *fp;
-  int fd;
-  gzFile in;
-  
+    FILE *fp;
+    int fd;
+    gzFile in;
+
 #ifdef WINDOWS
-  static char *tmpdir = "c:/windows/temp/dgzXXXXXX";
+    const char *tmptemplate = "c:/windows/temp/dgzXXXXXX";
 #else
-  static char *tmpdir = "/tmp/dgzXXXXXX";
+    const char *tmptemplate = "/tmp/dgzXXXXXX";
 #endif
 
-  if (!filename) return NULL;
+    if (!filename) return nullptr;
 
-  if (!(in = gzopen(filename, "rb"))) {
-    return 0;
-  }
+    if (!(in = gzopen(filename, "rb"))) {
+        return nullptr;
+    }
 
-  strncpy(tempname, tmpdir, 255);
-  
-  fd = mkstemp(tempname);
-  printf("opening %s\n", tempname);
-  if (fd < 1) return NULL;
-  fp = fdopen(fd, "wb");
-  gz_uncompress(in, fp);
-  gzclose(in);
-  fclose(fp);
+    strncpy(tempname, tmptemplate, 255);
+    tempname[255] = '\0';
 
-  fp = fopen(tempname, "rb");
-  return(fp);
-}  
+    fd = mkstemp(tempname);
+    if (fd < 1) {
+        gzclose(in);
+        return nullptr;
+    }
+    
+    fp = fdopen(fd, "wb");
+    if (!fp) {
+        close(fd);
+        gzclose(in);
+        return nullptr;
+    }
+    
+    gz_uncompress(in, fp);
+    gzclose(in);
+    fclose(fp);
 
+    fp = fopen(tempname, "rb");
+    return fp;
+}
+
+/*
+ * Main MEX Function Class
+ */
 class MexFunction : public matlab::mex::Function {
-public:
-    void operator()(matlab::mex::ArgumentList outputs, matlab::mex::ArgumentList inputs) {
-        checkArguments(outputs, inputs);
-        double multiplier = inputs[0][0];
-        matlab::data::TypedArray<double> in = std::move(inputs[1]);
-        arrayProduct(in, multiplier);
-        outputs[0] = std::move(in);
+private:
+    std::shared_ptr<matlab::engine::MATLABEngine> matlabPtr;
+    ArrayFactory factory;
+
+    /*
+     * Throw a MATLAB error
+     */
+    void throwError(const std::string& msg) {
+        matlabPtr->feval(u"error", 0,
+            std::vector<Array>({ factory.createScalar(msg) }));
     }
 
-    void arrayProduct(matlab::data::TypedArray<double>& inMatrix, double multiplier) {
+    /*
+     * Print to MATLAB console (like mexPrintf)
+     */
+    void print(const std::string& msg) {
+        matlabPtr->feval(u"fprintf", 0,
+            std::vector<Array>({ factory.createScalar(msg) }));
+    }
+
+    /*
+     * Convert a DYN_LIST to a MATLAB Array
+     * Handles nested lists (cell arrays), numeric types, and strings
+     */
+    Array dynListToArray(DYN_LIST *dl) {
+        if (!dl) {
+            return factory.createArray<double>({0, 0});
+        }
+
+        int n = DYN_LIST_N(dl);
         
-        for (auto& elem : inMatrix) {
-            elem *= multiplier;
+        switch (DYN_LIST_DATATYPE(dl)) {
+        case DF_LIST:
+            {
+                // Create cell array for nested lists
+                DYN_LIST **sublists = reinterpret_cast<DYN_LIST **>(DYN_LIST_VALS(dl));
+                std::vector<Array> cells;
+                cells.reserve(n);
+                
+                for (int i = 0; i < n; i++) {
+                    cells.push_back(dynListToArray(sublists[i]));
+                }
+                
+                // Create n x 1 cell array
+                CellArray cellArray = factory.createCellArray({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    cellArray[i] = cells[i];
+                }
+                return cellArray;
+            }
+
+        case DF_LONG:
+            {
+                int *vals = reinterpret_cast<int *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = static_cast<double>(vals[i]);
+                }
+                return arr;
+            }
+
+        case DF_SHORT:
+            {
+                short *vals = reinterpret_cast<short *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = static_cast<double>(vals[i]);
+                }
+                return arr;
+            }
+
+        case DF_FLOAT:
+            {
+                float *vals = reinterpret_cast<float *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = static_cast<double>(vals[i]);
+                }
+                return arr;
+            }
+
+        case DF_CHAR:
+            {
+                char *vals = reinterpret_cast<char *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = static_cast<double>(vals[i]);
+                }
+                return arr;
+            }
+
+        case DF_DOUBLE:
+            {
+                double *vals = reinterpret_cast<double *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = vals[i];
+                }
+                return arr;
+            }
+
+        case DF_STRING:
+            {
+                const char **vals = reinterpret_cast<const char **>(DYN_LIST_VALS(dl));
+                // Create cell array of strings
+                CellArray cellArray = factory.createCellArray({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    if (vals[i]) {
+                        cellArray[i] = factory.createCharArray(vals[i]);
+                    } else {
+                        cellArray[i] = factory.createCharArray("");
+                    }
+                }
+                return cellArray;
+            }
+
+        default:
+            // Return empty array for unknown types
+            return factory.createArray<double>({0, 0});
         }
     }
 
-    void checkArguments(matlab::mex::ArgumentList outputs, matlab::mex::ArgumentList inputs) {
-        std::shared_ptr<matlab::engine::MATLABEngine> matlabPtr = getEngine();
-        matlab::data::ArrayFactory factory;
+    /*
+     * Check if filename has a specific extension (case-insensitive for lz4)
+     */
+    bool hasExtension(const std::string& filename, const std::string& ext) {
+        size_t dotPos = filename.rfind('.');
+        if (dotPos == std::string::npos) return false;
+        
+        std::string fileExt = filename.substr(dotPos);
+        if (ext == ".lz4") {
+            return (fileExt == ".lz4" || fileExt == ".LZ4");
+        }
+        return (fileExt == ext);
+    }
 
-        if (inputs.size() != 2) {
-            matlabPtr->feval(u"error", 
-                0, std::vector<matlab::data::Array>({ factory.createScalar("Two inputs required") }));
+public:
+    MexFunction() {
+        matlabPtr = getEngine();
+    }
+
+    void operator()(ArgumentList outputs, ArgumentList inputs) {
+        // Validate arguments
+        if (inputs.size() != 1) {
+            throwError("usage: dg_read('filename')");
+        }
+        if (outputs.size() > 1) {
+            throwError("Too many output arguments.");
+        }
+        if (inputs[0].getType() != ArrayType::CHAR) {
+            throwError("Filename must be a string.");
         }
 
-        if (inputs[0].getType() != matlab::data::ArrayType::DOUBLE ||
-            inputs[0].getType() == matlab::data::ArrayType::COMPLEX_DOUBLE ||
-            inputs[0].getNumberOfElements() != 1) {
-            matlabPtr->feval(u"error", 
-                0, std::vector<matlab::data::Array>({ factory.createScalar("Input multiplier must be a scalar") }));
+        // Get filename
+        CharArray filenameArray = inputs[0];
+        std::string filename = filenameArray.toAscii();
+        
+        DYN_GROUP *dg = nullptr;
+        FILE *fp = nullptr;
+        char tempname[256] = {0};
+        bool needCleanup = false;
+        bool dgLoaded = false;
+
+        // Determine file type and load accordingly
+        if (hasExtension(filename, ".dg") && !hasExtension(filename, ".dgz")) {
+            // Plain .dg file - no decompression needed
+            fp = fopen(filename.c_str(), "rb");
+            if (!fp) {
+                throwError("Error opening data file \"" + filename + "\".");
+            }
+        }
+        else if (hasExtension(filename, ".lz4")) {
+            // LZ4 compressed file - use direct reader
+            dg = dfuCreateDynGroup(4);
+            if (!dg) {
+                throwError("dg_read: error creating new dyngroup");
+            }
+            if (dgReadDynGroup(const_cast<char*>(filename.c_str()), dg) == DF_OK) {
+                dgLoaded = true;
+            } else {
+                dfuFreeDynGroup(dg);
+                throwError("dg_read: file " + filename + " not recognized as lz4/dg format");
+            }
+        }
+        else {
+            // Try to uncompress (dgz or gz file)
+            fp = uncompress_file(filename.c_str(), tempname);
+            if (!fp) {
+                // Try with .dg extension
+                std::string tryname = filename + ".dg";
+                fp = uncompress_file(tryname.c_str(), tempname);
+            }
+            if (!fp) {
+                // Try with .dgz extension
+                std::string tryname = filename + ".dgz";
+                fp = uncompress_file(tryname.c_str(), tempname);
+            }
+            if (!fp) {
+                throwError("dg_read: file " + filename + " not found");
+            }
+            needCleanup = (tempname[0] != 0);
         }
 
-        if (inputs[1].getType() != matlab::data::ArrayType::DOUBLE ||
-            inputs[1].getType() == matlab::data::ArrayType::COMPLEX_DOUBLE) {
-            matlabPtr->feval(u"error", 
-                0, std::vector<matlab::data::Array>({ factory.createScalar("Input matrix must be type double") }));
+        // If we have a file pointer, read the dg structure from it
+        if (!dgLoaded && fp) {
+            dg = dfuCreateDynGroup(4);
+            if (!dg) {
+                fclose(fp);
+                if (needCleanup) unlink(tempname);
+                throwError("Error creating dyn group.");
+            }
+
+            if (!dguFileToStruct(fp, dg)) {
+                dfuFreeDynGroup(dg);
+                fclose(fp);
+                if (needCleanup) unlink(tempname);
+                throwError("dg_read: file " + filename + " not recognized as dg format");
+            }
+            fclose(fp);
+            if (needCleanup) unlink(tempname);
         }
 
-        if (inputs[1].getDimensions().size() != 2) {
-            matlabPtr->feval(u"error", 
-                0, std::vector<matlab::data::Array>({ factory.createScalar("Input must be m-by-n dimension") }));
+        // Convert DYN_GROUP to MATLAB struct
+        int nLists = DYN_GROUP_NLISTS(dg);
+        
+        // Collect field names
+        std::vector<std::string> fieldNames;
+        fieldNames.reserve(nLists);
+        for (int i = 0; i < nLists; i++) {
+            const char* name = DYN_LIST_NAME(DYN_GROUP_LIST(dg, i));
+            fieldNames.push_back(name ? name : "");
         }
+
+        // Create struct with field names
+        StructArray result = factory.createStructArray({1, 1}, fieldNames);
+
+        // Fill in field values
+        for (int i = 0; i < nLists; i++) {
+            Array fieldValue = dynListToArray(DYN_GROUP_LIST(dg, i));
+            result[0][fieldNames[i]] = fieldValue;
+        }
+
+        dfuFreeDynGroup(dg);
+        
+        outputs[0] = result;
     }
 };
-
-#if 0
-mxArray *dynListToCellArray(DYN_LIST *dl)
-{
-  mwSize dims;
-  int i;
-  DYN_LIST **sublists;
-  mxArray *retval = NULL, *cell;
-  double *d;
-
-  switch(DYN_LIST_DATATYPE(dl)) {
-  case DF_LIST:
-    dims = DYN_LIST_N(dl);
-    retval = mxCreateCellArray(1, &dims);
-    sublists = (DYN_LIST **) DYN_LIST_VALS(dl);
-    for (i = 0; i < DYN_LIST_N(dl); i++) {
-      cell = dynListToCellArray(sublists[i]);
-      mxSetCell(retval, i, cell);
-    }
-    break;
-  case DF_LONG:
-    {
-      int *vals = (int *) DYN_LIST_VALS(dl);
-      retval = mxCreateDoubleMatrix(DYN_LIST_N(dl), 1, mxREAL);
-      d = mxGetPr(retval);
-      for ( i = 0; i < DYN_LIST_N(dl); i++ ) 
-	d[i] = (double) vals[i];
-    }
-    break;
-  case DF_SHORT:
-    {
-      short *vals = (short *) DYN_LIST_VALS(dl);
-      retval = mxCreateDoubleMatrix(DYN_LIST_N(dl), 1, mxREAL);
-      d = mxGetPr(retval);
-      for ( i = 0; i < DYN_LIST_N(dl); i++ ) 
-	d[i] = (double) vals[i];
-    }
-    break;
-  case DF_FLOAT:
-    {
-      float *vals = (float *) DYN_LIST_VALS(dl);
-      retval = mxCreateDoubleMatrix(DYN_LIST_N(dl), 1, mxREAL);
-      d = mxGetPr(retval);
-      for ( i = 0; i < DYN_LIST_N(dl); i++ ) 
-	d[i] = (double) vals[i];
-    }
-    break;
-  case DF_CHAR:
-    {
-      char *vals = (char *) DYN_LIST_VALS(dl);
-      retval = mxCreateDoubleMatrix(DYN_LIST_N(dl), 1, mxREAL);
-      d = mxGetPr(retval);
-      for ( i = 0; i < DYN_LIST_N(dl); i++ ) 
-	d[i] = (double) vals[i];
-    }
-    break;
-  case DF_STRING:
-    {
-      const char **vals = (const char **) DYN_LIST_VALS(dl);
-      retval = mxCreateCharMatrixFromStrings(DYN_LIST_N(dl), vals);
-    }
-  }
-  return retval;
-}
-
-void
-mexFunction(int nlhs,mxArray *plhs[],int nrhs,const mxArray *prhs[])
-{
-  mwSize dims[2] = {1, 1 };
-  int i, buflen, status;
-  char *filename;
-  DYN_GROUP *dg;
-  FILE *fp;
-  int newentry;
-  char *newname = NULL, *suffix;
-  char tempname[256];
-  char message[256];
-  char **field_names;
-  mxArray *field_value;
-
-  /* Check for proper number of input and  output arguments */    
-  if (nrhs !=1) {
-    mexErrMsgTxt("usage: dg_read('filename')");
-  } 
-  if(nlhs > 1){
-    mexErrMsgTxt("Too many output arguments.");
-  }
-
-  buflen = (mxGetM(FILE_IN) * mxGetN(FILE_IN)) + 1;
-  filename = mxCalloc(buflen, sizeof(char));
-  status = mxGetString(FILE_IN, filename, buflen);
-
-  /* No need to uncompress a .dg file */
-  if ((suffix = strrchr(filename, '.')) && strstr(suffix, "dg") &&
-      !strstr(suffix, "dgz")) {
-    fp = fopen(filename, "rb");
-    if (!fp) {
-      sprintf(message, "Error opening data file \"%s\".", filename);
-      mexErrMsgTxt(message);
-      tempname[0] = 0;
-    }
-  }
-  
-  else if ((suffix = strrchr(filename, '.')) &&
-	   strlen(suffix) == 4 &&
-	   ((suffix[1] == 'l' && suffix[2] == 'z' && suffix[3] == '4') ||
-	    (suffix[1] == 'L' && suffix[2] == 'Z' && suffix[3] == '4'))) {
-    if (!(dg = dfuCreateDynGroup(4))) {
-      sprintf(message, "dg_read: error creating new dyngroup");
-      mexErrMsgTxt(message);
-    }
-    if (dgReadDynGroup(filename, dg) == DF_OK) {
-      goto process_dg;
-    }
-    else {
-      sprintf(message, "dg_read: file %s not recognized as lz4/dg format", 
-	      filename);
-      mexErrMsgTxt(message);
-    }
-  }
-
-  else if ((fp = uncompress_file(filename, tempname)) == NULL) {
-    char fullname[128];
-    sprintf(fullname,"%s.dg", filename);
-    if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-      sprintf(fullname,"%s.dgz", filename);
-      if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-	sprintf(message, "dg_read: file %s not found", filename);
-	mexErrMsgTxt(message);
-      }
-    }
-  }
-  
-  if (!(dg = dfuCreateDynGroup(4))) {
-    mexErrMsgTxt("Error creating dyn group.");
-  }
-
-  if (!dguFileToStruct(fp, dg)) {
-    sprintf(message, "dg_read: file %s not recognized as dg format", 
-	    filename);
-    fclose(fp);
-    if (tempname[0]) unlink(tempname);
-    mexErrMsgTxt(message);
-  }
-  fclose(fp);
-  if (tempname[0]) unlink(tempname);
-
- process_dg:
-  dims[1] = 1;
-
-  field_names = mxCalloc(DYN_GROUP_NLISTS(dg), sizeof (char *));
-  for (i = 0; i < DYN_GROUP_NLISTS(dg); i++) {
-    field_names[i] = DYN_LIST_NAME(DYN_GROUP_LIST(dg,i));
-  }
-
-  plhs[0] = mxCreateStructArray(2, dims, DYN_GROUP_NLISTS(dg),
-				(const char **) field_names);
-
-  for (i = 0; i < DYN_GROUP_NLISTS(dg); i++) {
-   field_value = dynListToCellArray(DYN_GROUP_LIST(dg, i));
-   if (!field_value) {
-     sprintf(message, "dg_read: error reading data file \"%s\"", filename);
-     dfuFreeDynGroup(dg);
-     mexErrMsgTxt(message);
-   }
-   mxSetFieldByNumber(plhs[0], 0, i, field_value);
-  }
-
-  dfuFreeDynGroup(dg);
-}
-#endif
