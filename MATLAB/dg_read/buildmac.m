@@ -66,18 +66,18 @@ if ~isempty(missing_headers)
     fprintf('Build may fail.\n\n');
 end
 
-% Compiler flags for C++ files
-% -std=c++11    : Required for modern MEX API
-% -Wno-deprecated: Suppress deprecation warnings  
-cxxflags = 'CXXFLAGS=$CXXFLAGS -std=c++11 -Wno-deprecated';
-
-% Compiler flags for C files
-% These suppress common warnings in older C code:
-% -Wno-implicit-function-declaration : Functions used before declared
-% -Wno-incompatible-pointer-types    : Pointer type mismatches
-% -Wno-int-conversion                : Int/pointer conversions
-% -Wno-format                        : Printf format warnings
-cflags = 'CFLAGS=$CFLAGS -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-format';
+% Split sources into C and C++ files
+% This is critical because C files use 'new' as a variable name,
+% which is a reserved keyword in C++
+cpp_sources = {};
+c_sources = {};
+for i = 1:length(sources)
+    if endsWith(sources{i}, '.cpp')
+        cpp_sources{end+1} = sources{i}; %#ok<SAGROW>
+    else
+        c_sources{end+1} = sources{i}; %#ok<SAGROW>
+    end
+end
 
 % Include current directory for headers
 includes = '-I.';
@@ -85,10 +85,32 @@ includes = '-I.';
 % Link against zlib
 libs = '-lz';
 
-% Build the MEX file
+% Build the MEX file in two steps:
+% 1. Compile C files as object files (as C, not C++)
+% 2. Compile C++ and link everything together
 try
-    fprintf('Compiling...\n');
-    mex('-v', cxxflags, cflags, includes, sources{:}, libs);
+    fprintf('Compiling C sources...\n');
+    
+    % Compiler flags for C files
+    cflags = 'CFLAGS=$CFLAGS -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-format';
+    
+    % Compile each C file to object file
+    obj_files = {};
+    for i = 1:length(c_sources)
+        [~, name, ~] = fileparts(c_sources{i});
+        obj_file = [name '.o'];
+        obj_files{end+1} = obj_file; %#ok<SAGROW>
+        fprintf('  %s -> %s\n', c_sources{i}, obj_file);
+        mex('-c', cflags, includes, c_sources{i});
+    end
+    
+    fprintf('Compiling C++ sources and linking...\n');
+    
+    % Compiler flags for C++ files  
+    cxxflags = 'CXXFLAGS=$CXXFLAGS -std=c++11 -Wno-deprecated';
+    
+    % Now compile C++ and link with object files
+    mex(cxxflags, includes, cpp_sources{:}, obj_files{:}, libs);
     fprintf('\n');
     fprintf('===========================================\n');
     fprintf('Build successful!\n');
