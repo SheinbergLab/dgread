@@ -194,16 +194,6 @@ private:
                 return arr;
             }
 
-        case DF_DOUBLE:
-            {
-                double *vals = reinterpret_cast<double *>(DYN_LIST_VALS(dl));
-                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
-                for (int i = 0; i < n; i++) {
-                    arr[i] = vals[i];
-                }
-                return arr;
-            }
-
         case DF_STRING:
             {
                 const char **vals = reinterpret_cast<const char **>(DYN_LIST_VALS(dl));
