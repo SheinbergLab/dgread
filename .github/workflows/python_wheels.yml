@@ -1,0 +1,109 @@
+# Build Python wheels and publish to PyPI
+#
+# The key difference from a standalone Python repo is that we need to
+# include the ../src/ directory in the sdist and handle paths correctly.
+
+name: Python Wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to PyPI (yes/no)'
+        required: true
+        default: 'no'
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'python/**'
+      - '.github/workflows/python_wheels.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'python/**'
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.22
+        with:
+          package-dir: python
+        env:
+          # cibuildwheel config is in python/pyproject.toml
+          # But we need the parent src/ directory available
+          CIBW_BEFORE_BUILD: |
+            echo "Source structure check:"
+            ls -la
+            ls -la src/core || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Create sdist with all sources
+        run: |
+          pip install build
+          # Create a temporary package directory with all needed sources
+          mkdir -p _build_pkg/src
+          cp -r src/core _build_pkg/src/
+          cp -r src/lz4 _build_pkg/src/
+          cp -r python/* _build_pkg/
+          cd _build_pkg
+          python -m build --sdist
+          mv dist ../ 
+          cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: Publish to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'yes')
+    
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List distributions
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,18 @@
+# Python-specific sources
+include dgread.c
+include *.h
+
+# Include shared C sources (for source distribution)
+recursive-include ../src/core *.c *.h
+recursive-include ../src/lz4 *.c *.h
+
+# Documentation
+include README.md
+include ../LICENSE
+
+# Exclude build artifacts
+global-exclude *.so
+global-exclude *.pyd
+global-exclude *.o
+global-exclude *.pyc
+global-exclude __pycache__

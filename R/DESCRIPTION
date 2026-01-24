@@ -1,0 +1,18 @@
+Package: dgread
+Type: Package
+Title: Read Dynamic Group (dg/dgz) Data Files
+Version: 1.1.0
+Authors@R: person("David", "Sheinberg", 
+                  email = "david_sheinberg@brown.edu",
+                  role = c("aut", "cre"))
+Description: Fast reader for dg (dynamic group) and dgz (compressed) data 
+    files. These files store collections of named arrays with support for 
+    nested and ragged (variable-length) data, commonly used in neuroscience 
+    and behavioral research.
+License: MIT + file LICENSE
+URL: https://github.com/SheinbergLab/dgread
+BugReports: https://github.com/SheinbergLab/dgread/issues
+Encoding: UTF-8
+NeedsCompilation: yes
+SystemRequirements: zlib
+RoxygenNote: 7.2.3
