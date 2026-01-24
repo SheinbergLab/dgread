@@ -9,6 +9,7 @@ from setuptools import setup, Extension
 import numpy as np
 import platform
 import os
+import sys
 
 # C source files - use relative paths from python/ directory
 sources = [
@@ -42,14 +43,31 @@ library_dirs = []
 libraries = []
 extra_compile_args = []
 extra_link_args = []
+extra_objects = []
 
 if platform.system() == 'Windows':
-    libraries.append('z')
-    extra_compile_args = ['/wd4244', '/wd4267']
+    # Windows: use conda-forge zlib if available (installed by cibuildwheel)
+    extra_compile_args = ['/DWINDOWS', '/wd4244', '/wd4267', '/wd4996']
+    
+    # Look for zlib in common locations
+    conda_prefix = os.environ.get('CONDA_PREFIX', '')
+    if conda_prefix:
+        include_dirs.append(os.path.join(conda_prefix, 'Library', 'include'))
+        library_dirs.append(os.path.join(conda_prefix, 'Library', 'lib'))
+    
+    # Also check for vcpkg
+    vcpkg_root = os.environ.get('VCPKG_ROOT', r'C:\vcpkg')
+    vcpkg_installed = os.path.join(vcpkg_root, 'installed', 'x64-windows')
+    if os.path.exists(vcpkg_installed):
+        include_dirs.append(os.path.join(vcpkg_installed, 'include'))
+        library_dirs.append(os.path.join(vcpkg_installed, 'lib'))
+    
+    libraries.append('zlib')
+    
 elif platform.system() == 'Darwin':
     libraries.append('z')
-    # Remove the old macOS version flag - let the system decide
 else:
+    # Linux
     libraries.append('z')
 
 dgread_ext = Extension(

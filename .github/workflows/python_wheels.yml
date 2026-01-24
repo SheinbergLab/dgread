@@ -1,7 +1,4 @@
 # Build Python wheels and publish to PyPI
-#
-# The key difference from a standalone Python repo is that we need to
-# include the ../src/ directory in the sdist and handle paths correctly.
 
 name: Python Wheels
 
@@ -38,17 +35,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install zlib (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install zlib:x64-windows
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22
         with:
           package-dir: python
         env:
-          # cibuildwheel config is in python/pyproject.toml
-          # But we need the parent src/ directory available
-          CIBW_BEFORE_BUILD: |
-            echo "Source structure check:"
-            ls -la
-            ls -la src/core || true
+          CIBW_ENVIRONMENT_WINDOWS: >
+            VCPKG_ROOT=C:\vcpkg
+            INCLUDE=C:\vcpkg\installed\x64-windows\include
+            LIB=C:\vcpkg\installed\x64-windows\lib
 
       - uses: actions/upload-artifact@v4
         with:
@@ -69,15 +70,9 @@ jobs:
       - name: Create sdist with all sources
         run: |
           pip install build
-          # Create a temporary package directory with all needed sources
-          mkdir -p _build_pkg/src
-          cp -r src/core _build_pkg/src/
-          cp -r src/lz4 _build_pkg/src/
-          cp -r python/* _build_pkg/
-          cd _build_pkg
+          cd python
           python -m build --sdist
-          mv dist ../ 
-          cd ..
+          mv dist ../
 
       - uses: actions/upload-artifact@v4
         with:
