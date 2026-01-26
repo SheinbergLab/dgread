@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "numpy>=1.19"]
+requires = ["setuptools>=61", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
@@ -53,7 +54,7 @@ package-dir = {"" = "src"}
 py-modules = ["dgread_utils"]
 
 [tool.cibuildwheel]
-build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
 
 [tool.cibuildwheel.linux]
