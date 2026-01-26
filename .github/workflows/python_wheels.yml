@@ -9,14 +9,14 @@ on:
         description: 'Publish to PyPI (yes/no)'
         required: true
         default: 'no'
-  release:
-    types: [published]
   push:
     branches: [main]
     paths:
       - 'src/**'
       - 'python/**'
       - '.github/workflows/python_wheels.yml'
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
     paths:
@@ -42,7 +42,7 @@ jobs:
           echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.22
+        uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: python
         env:
@@ -84,8 +84,8 @@ jobs:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'release' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'yes')
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'yes') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     
     permissions:
       id-token: write
