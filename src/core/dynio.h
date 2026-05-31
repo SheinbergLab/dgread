@@ -101,6 +101,7 @@ int  dgGetStructureType(int type);
 
 int dgReadDynGroup(char *, DYN_GROUP *dg);
 int dgReadDynGroupCompressed(char *, DYN_GROUP *dg);
+int dguGzipFileToStruct(char *filename, DYN_GROUP *dg);
 int dguFileToStruct(FILE *InFP, DYN_GROUP *dg);
 int dguBufferToStruct(unsigned char *vbuf, int n, DYN_GROUP *dg);
 

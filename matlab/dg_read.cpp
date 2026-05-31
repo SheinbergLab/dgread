@@ -36,68 +36,9 @@ using namespace matlab::data;
 using matlab::mex::ArgumentList;
 
 /*
- * Helper: Uncompress gzipped input to output file
+ * gzip (.dgz) reads are decompressed fully in memory by
+ * dguGzipFileToStruct() (core/dynio.c) -- no temp file.
  */
-static void gz_uncompress(gzFile in, FILE *out)
-{
-    char buf[2048];
-    int len;
-
-    for (;;) {
-        len = gzread(in, buf, sizeof(buf));
-        if (len < 0) return;
-        if (len == 0) break;
-
-        if (static_cast<int>(fwrite(buf, 1, static_cast<unsigned>(len), out)) != len) {
-            return;
-        }
-    }
-}
-
-/*
- * Helper: Uncompress a gzipped file to a temp file, return FILE* to temp
- */
-static FILE *uncompress_file(const char *filename, char tempname[256])
-{
-    FILE *fp;
-    int fd;
-    gzFile in;
-
-#ifdef WINDOWS
-    const char *tmptemplate = "c:/windows/temp/dgzXXXXXX";
-#else
-    const char *tmptemplate = "/tmp/dgzXXXXXX";
-#endif
-
-    if (!filename) return nullptr;
-
-    if (!(in = gzopen(filename, "rb"))) {
-        return nullptr;
-    }
-
-    strncpy(tempname, tmptemplate, 255);
-    tempname[255] = '\0';
-
-    fd = mkstemp(tempname);
-    if (fd < 1) {
-        gzclose(in);
-        return nullptr;
-    }
-    
-    fp = fdopen(fd, "wb");
-    if (!fp) {
-        close(fd);
-        gzclose(in);
-        return nullptr;
-    }
-    
-    gz_uncompress(in, fp);
-    gzclose(in);
-    fclose(fp);
-
-    fp = fopen(tempname, "rb");
-    return fp;
-}
 
 /*
  * Main MEX Function Class
@@ -278,22 +219,25 @@ public:
             }
         }
         else {
-            // Try to uncompress (dgz or gz file)
-            fp = uncompress_file(filename.c_str(), tempname);
-            if (!fp) {
-                // Try with .dg extension
+            // gzip-compressed (.dgz etc.): decompress fully in memory, no temp file.
+            dg = dfuCreateDynGroup(4);
+            if (!dg) {
+                throwError("dg_read: error creating new dyngroup");
+            }
+            int gstat = dguGzipFileToStruct(const_cast<char*>(filename.c_str()), dg);
+            if (gstat != DF_OK) {
                 std::string tryname = filename + ".dg";
-                fp = uncompress_file(tryname.c_str(), tempname);
+                gstat = dguGzipFileToStruct(const_cast<char*>(tryname.c_str()), dg);
             }
-            if (!fp) {
-                // Try with .dgz extension
+            if (gstat != DF_OK) {
                 std::string tryname = filename + ".dgz";
-                fp = uncompress_file(tryname.c_str(), tempname);
+                gstat = dguGzipFileToStruct(const_cast<char*>(tryname.c_str()), dg);
             }
-            if (!fp) {
+            if (gstat != DF_OK) {
+                dfuFreeDynGroup(dg);
                 throwError("dg_read: file " + filename + " not found");
             }
-            needCleanup = (tempname[0] != 0);
+            dgLoaded = true;
         }
 
         // If we have a file pointer, read the dg structure from it

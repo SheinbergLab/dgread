@@ -30,70 +30,8 @@
 #endif
 
 
-/* ===========================================================================
- * Uncompress input to output then close both files.
- */
-
-static void gz_uncompress(gzFile in, FILE *out)
-{
-    char buf[2048];
-    int len;
-
-    for (;;) {
-        len = gzread(in, buf, sizeof(buf));
-        if (len < 0) return;
-        if (len == 0) break;
-
-        if ((int)fwrite(buf, 1, (unsigned)len, out) != len) {
-	  return;
-	}
-    }
-    if (fclose(out)) return;
-    if (gzclose(in) != Z_OK) return;
-}
-
-static FILE *uncompress_file(char *filename, char *tempname)
-{
-  FILE *fp;
-  gzFile in;
-#ifdef _WIN32
-  static char *tmpdir = "c:/windows/temp";
-  char *fname;
-#else
-  static char fname[L_tmpnam];
-#endif
-
-  if (!filename) return NULL;
-
-  if (!(in = gzopen(filename, "rb"))) {
-    sprintf(tempname, "file %s not found", filename);
-    return 0;
-  }
-
-#ifdef _WIN32
-  fname = tempnam(tmpdir, "dg");
-#else
-  tmpnam(fname);
-#endif
-  if (!(fp = fopen(fname,"wb"))) {
-    strcpy(tempname, "error opening temp file for decompression");
-    return 0;
-  }
-
-  gz_uncompress(in, fp);
-
-  /* DONE in gz_uncompress!  fclose(fp); */
-
-  fp = fopen(fname, "rb");
-  if (tempname) strcpy(tempname, fname);
-
-
-#ifdef _WIN32
-  //  free(fname); ?? Apparently not, as it crashes when compiled with mingw
-#endif
-
-  return(fp);
-}  
+/* gzip (.dgz) reads are decompressed fully in memory by
+ * dguGzipFileToStruct() (core/dynio.c) -- no temp file. */
 
 
 static
@@ -193,6 +131,7 @@ dynGroupFileToPyObject(char *filename)
 		      "dyngroup not found");
       return NULL;
     }
+    tempname[0] = 0;
   }
 
 
@@ -217,21 +156,35 @@ dynGroupFileToPyObject(char *filename)
   }
 
   
-  else if ((fp = uncompress_file(filename, tempname)) == NULL) {
-    char fullname[128];
-    sprintf(fullname,"%s.dg", filename);
-    if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-      sprintf(fullname,"%s.dgz", filename);
-      if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-	PyErr_SetString(PyExc_ValueError,
-			"dyngroup not found");
-	return NULL;
-      }
+  else {
+    /* gzip-compressed (.dgz etc.): decompress fully in memory, no temp file.
+       Try the name as given, then with .dg / .dgz appended. */
+    char fullname[256];
+    int gstat;
+    if (!(dg = dfuCreateDynGroup(4))) {
+      PyErr_SetString(PyExc_ValueError, "dg_read: error creating new dyngroup");
+      return NULL;
     }
+    gstat = dguGzipFileToStruct(filename, dg);
+    if (gstat != DF_OK) {
+      snprintf(fullname, sizeof(fullname), "%s.dg", filename);
+      gstat = dguGzipFileToStruct(fullname, dg);
+    }
+    if (gstat != DF_OK) {
+      snprintf(fullname, sizeof(fullname), "%s.dgz", filename);
+      gstat = dguGzipFileToStruct(fullname, dg);
+    }
+    if (gstat != DF_OK) {
+      dfuFreeDynGroup(dg);
+      PyErr_SetString(PyExc_ValueError, "dyngroup not found");
+      return NULL;
+    }
+    goto process_dg;
   }
-  
+
+  /* Only the raw uncompressed .dg branch reaches here (fp set above). */
   dg = dfuCreateDynGroup(4);
-  
+
   if (!dguFileToStruct(fp, dg)) {
     fclose(fp);
     if (tempname[0]) unlink(tempname);

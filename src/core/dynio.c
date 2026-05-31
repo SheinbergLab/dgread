@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 
 #if defined(SUN4) || defined(LYNX) || defined(LINUX) || defined(FREEBSD)
 #include <unistd.h>
@@ -281,67 +282,79 @@ int dgReadDynGroup(char *filename, DYN_GROUP *dg)
   }
 
   status = dguFileToStruct(fp, dg);
-  
+
   if (filename && filename[0]) fclose(fp);
   return(status);
 }
 
-#ifdef COMPRESSION
-int dgReadDynGroupCompressed(char *filename, DYN_GROUP *dg)
+/*
+ * dguGzipFileToStruct -- read a gzip-compressed dg file (.dgz) fully into
+ * memory and parse it directly, with NO temporary file.  The whole gzip
+ * stream is inflated into a single realloc-grown buffer, then handed to
+ * dguBufferToStruct (which copies all data out via the vget_* helpers, so
+ * the buffer is freed immediately after).  This is the gzip analogue of the
+ * in-memory LZ4 path in dgReadDynGroup() above, and replaces the old
+ * tmpnam()-based decompress-to-temp-file approach.
+ *
+ * Returns DF_OK (1) on success, 0 on any failure (open / decompress / parse).
+ */
+int dguGzipFileToStruct(char *filename, DYN_GROUP *dg)
 {
-  char buf[BUFSIZ];
-  int len, err;
-  FILE *fp;
-  gzFile file;
-  int status = 0;
-  char fname[L_tmpnam];
+  gzFile in;
+  unsigned char *buf = NULL;
+  size_t cap = 0, total = 0;
+  const size_t CHUNK = 65536;
+  int status;
 
-  tmpnam(fname);
-  if (!(fp = fopen(fname,"wr"))) {
-    fprintf(stderr,"dg: unable to open temp file \"%s\"\n",
-	    fname);
-    return 0;
-  }
-
-  if (filename && filename[0]) {
-    if (!(file = gzopen(filename, "rb"))) {
-      fprintf(stderr,"dg: unable to open file \"%s\" for input\n",
-	      filename);
-      return 0;
-    }
-  }
-  else {
-    file = gzdopen(fileno(stdout), "rb");
-  }
+  if (!filename || !filename[0]) return 0;
+  if (!(in = gzopen(filename, "rb"))) return 0;
 
   for (;;) {
-    len = gzread(file, buf, sizeof(buf));
-    if (len < 0) {
-      fprintf(stderr, gzerror(file, &err));
-      return 0;
+    int len;
+
+    if (total > (size_t) INT_MAX - CHUNK - 1) {
+      fprintf(stderr, "dg: \"%s\" too large to decompress in memory\n",
+	      filename);
+      free(buf); gzclose(in); return 0;
     }
-    if (len == 0) break;
-    if (fwrite(buf, 1, (unsigned)len, fp) != len) {
-      fprintf(stderr, "fwrite: error writing uncompressed file");
-      if (filename && filename[0]) gzclose(file);
-      fclose(fp);
-      return 0;
+
+    if (total + CHUNK + 1 > cap) {		/* grow geometrically */
+      size_t newcap = cap ? cap : (CHUNK * 4);
+      unsigned char *tmp;
+      while (newcap < total + CHUNK + 1) newcap *= 2;
+      tmp = (unsigned char *) realloc(buf, newcap);
+      if (!tmp) {
+	fprintf(stderr, "dg: out of memory decompressing \"%s\"\n", filename);
+	free(buf); gzclose(in); return 0;
+      }
+      buf = tmp; cap = newcap;
     }
+
+    len = gzread(in, buf + total, (unsigned) CHUNK);
+    if (len < 0) {				/* decompression error */
+      int err = 0;
+      fprintf(stderr, "dg: gzread error on \"%s\": %s\n",
+	      filename, gzerror(in, &err));
+      free(buf); gzclose(in); return 0;
+    }
+    if (len == 0) break;			/* EOF (short reads just loop) */
+    total += (size_t) len;
   }
 
-  if (filename && filename[0]) {
-    if (gzclose(file) != Z_OK) {
-      return 0;
-    }
-  }
+  if (gzclose(in) != Z_OK) { free(buf); return 0; }
+  if (total == 0)          { free(buf); return 0; }
 
-  rewind(fp);
-  status = dguFileToStruct(fp, dg);
-  
-  fclose(fp);
-  unlink(fname);
-  
-  return(status);
+  status = dguBufferToStruct(buf, (int) total, dg);
+  free(buf);
+  return status;
+}
+
+#ifdef COMPRESSION
+/* Legacy entry point; the in-memory dguGzipFileToStruct() above is the real
+   implementation now (no temp file). */
+int dgReadDynGroupCompressed(char *filename, DYN_GROUP *dg)
+{
+  return dguGzipFileToStruct(filename, dg);
 }
 #endif
 
