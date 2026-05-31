@@ -52,10 +52,14 @@ jobs:
         with:
           package-dir: python
         env:
+          # Forward slashes on purpose: cibuildwheel parses CIBW_ENVIRONMENT
+          # shell-style, so backslashes get eaten (LIB=C:\vcpkg\... arrived at
+          # link.exe as C:vcpkg... -> LNK1181 cannot open zlib.lib). MSVC
+          # accepts forward slashes in INCLUDE/LIB/LIBPATH.
           CIBW_ENVIRONMENT_WINDOWS: >
-            VCPKG_ROOT=C:\vcpkg
-            INCLUDE=C:\vcpkg\installed\x64-windows\include
-            LIB=C:\vcpkg\installed\x64-windows\lib
+            VCPKG_ROOT=C:/vcpkg
+            INCLUDE=C:/vcpkg/installed/x64-windows/include
+            LIB=C:/vcpkg/installed/x64-windows/lib
 
       - uses: actions/upload-artifact@v4
         with:
