@@ -64,6 +64,7 @@ htmlcov/
 *.dg
 *.dgz
 !tests/data/*.dgz
+!R/inst/extdata/*.dgz
 
 # =============================================================================
 # Windows-specific build artifacts
