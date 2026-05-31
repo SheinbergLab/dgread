@@ -10,8 +10,10 @@
 #include <unistd.h>
 #endif
 #include "df.h"
+/* zlib is vendored and linked statically (../src/zlib), so do NOT define
+   ZLIB_DLL -- it would make zlib.h declare the API __declspec(dllimport)
+   and break linking against the static objects (unresolved __imp_*). */
 #ifdef _WIN32
-#define ZLIB_DLL
 #define _WINDOWS
 #endif
 #include "zlib.h"

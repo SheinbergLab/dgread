@@ -5,6 +5,7 @@ include *.h
 # Include shared C sources (for source distribution)
 recursive-include ../src/core *.c *.h
 recursive-include ../src/lz4 *.c *.h
+recursive-include ../src/zlib *.c *.h
 
 # Documentation
 include README.md

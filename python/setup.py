@@ -28,13 +28,33 @@ sources = [
     '../src/lz4/lz4hc.c',
     '../src/lz4/lz4frame.c',
     '../src/lz4/xxhash.c',
+
+    # zlib sources (vendored, ../src/zlib) -- compiled in so the wheel is
+    # self-contained: no system/vcpkg zlib needed on any platform.
+    '../src/zlib/adler32.c',
+    '../src/zlib/compress.c',
+    '../src/zlib/crc32.c',
+    '../src/zlib/deflate.c',
+    '../src/zlib/gzclose.c',
+    '../src/zlib/gzlib.c',
+    '../src/zlib/gzread.c',
+    '../src/zlib/gzwrite.c',
+    '../src/zlib/infback.c',
+    '../src/zlib/inffast.c',
+    '../src/zlib/inflate.c',
+    '../src/zlib/inftrees.c',
+    '../src/zlib/trees.c',
+    '../src/zlib/uncompr.c',
+    '../src/zlib/zutil.c',
 ]
 
-# Include directories - also relative
+# Include directories - also relative. ../src/zlib first so the vendored
+# zlib.h is used (over any system zlib) for the core's <zlib.h> includes.
 include_dirs = [
     '.',
     '../src/core',
     '../src/lz4',
+    '../src/zlib',
     np.get_include(),
 ]
 
@@ -44,31 +64,21 @@ libraries = []
 extra_compile_args = []
 extra_link_args = []
 extra_objects = []
+define_macros = []
 
+# zlib is vendored (../src/zlib) and compiled in, so there is no external
+# zlib to find or link on any platform.
 if platform.system() == 'Windows':
-    # Windows: use conda-forge zlib if available (installed by cibuildwheel)
-    extra_compile_args = ['/DWINDOWS', '/wd4244', '/wd4267', '/wd4996']
-    
-    # Look for zlib in common locations
-    conda_prefix = os.environ.get('CONDA_PREFIX', '')
-    if conda_prefix:
-        include_dirs.append(os.path.join(conda_prefix, 'Library', 'include'))
-        library_dirs.append(os.path.join(conda_prefix, 'Library', 'lib'))
-    
-    # Also check for vcpkg
-    vcpkg_root = os.environ.get('VCPKG_ROOT', r'C:\vcpkg')
-    vcpkg_installed = os.path.join(vcpkg_root, 'installed', 'x64-windows')
-    if os.path.exists(vcpkg_installed):
-        include_dirs.append(os.path.join(vcpkg_installed, 'include'))
-        library_dirs.append(os.path.join(vcpkg_installed, 'lib'))
-    
-    libraries.append('zlib')
-    
-elif platform.system() == 'Darwin':
-    libraries.append('z')
+    # MSVC: silence the usual C4244/4267/4996 noise from the vendored C.
+    # Do NOT pass /DWINDOWS: it makes dynio.c define ZLIB_DLL, which would
+    # pull zlib in via __declspec(dllimport) and fail to link against the
+    # statically-vendored zlib objects.
+    extra_compile_args = ['/wd4244', '/wd4267', '/wd4996']
 else:
-    # Linux
-    libraries.append('z')
+    # POSIX: zlib's gz*.c use lseek/read/write/close from <unistd.h>, which
+    # zlib only includes when Z_HAVE_UNISTD_H is set (normally by zlib's
+    # ./configure). We vendor the unconfigured zconf.h, so define it here.
+    define_macros.append(('Z_HAVE_UNISTD_H', '1'))
 
 dgread_ext = Extension(
     'dgread',
@@ -76,6 +86,7 @@ dgread_ext = Extension(
     include_dirs=include_dirs,
     library_dirs=library_dirs,
     libraries=libraries,
+    define_macros=define_macros,
     extra_compile_args=extra_compile_args,
     extra_link_args=extra_link_args,
 )

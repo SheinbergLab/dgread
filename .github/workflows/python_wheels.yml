@@ -41,25 +41,13 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Install zlib (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          vcpkg install zlib:x64-windows
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+      # zlib is vendored (src/zlib) and compiled into the extension, so there
+      # is no external zlib to install or point the linker at on Windows.
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         with:
           package-dir: python
-        env:
-          # Forward slashes on purpose: cibuildwheel parses CIBW_ENVIRONMENT
-          # shell-style, so backslashes get eaten (LIB=C:\vcpkg\... arrived at
-          # link.exe as C:vcpkg... -> LNK1181 cannot open zlib.lib). MSVC
-          # accepts forward slashes in INCLUDE/LIB/LIBPATH.
-          CIBW_ENVIRONMENT_WINDOWS: >
-            VCPKG_ROOT=C:/vcpkg
-            INCLUDE=C:/vcpkg/installed/x64-windows/include
-            LIB=C:/vcpkg/installed/x64-windows/lib
 
       - uses: actions/upload-artifact@v4
         with:
