@@ -10,7 +10,7 @@
 #include <Rdefines.h>
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
-#include <R_ext/PrtUtil.h>
+#include <R_ext/Print.h>   /* was R_ext/PrtUtil.h, removed in R 4.6.0 */
 //#include "foreign.h"
 #include <unistd.h>
 #include "df.h"
@@ -21,54 +21,15 @@
 #include <zlib.h>
 #include "dynio.h"
 
-/* ===========================================================================
- * Uncompress input to output then close both files.
- */
-static void gz_uncompress(gzFile in, FILE *out)
+/* gzip (.dgz) reads are decompressed fully in memory by
+ * dguGzipFileToStruct() (dynio.c) -- no temp file. */
+
+/* isValidString() was removed from R's public API (R 4.6.0 keeps the remap
+   macro but no longer declares Rf_isValidString); inline the equivalent. */
+static int dg_isValidString(SEXP s)
 {
-    char buf[2048];
-    int len;
-
-    for (;;) {
-        len = gzread(in, buf, sizeof(buf));
-        if (len < 0) return;
-        if (len == 0) break;
-
-        if ((int)fwrite(buf, 1, (unsigned)len, out) != len) {
-	  return;
-	}
-    }
-    if (fclose(out)) return;
-    if (gzclose(in) != Z_OK) return;
+  return (TYPEOF(s) == STRSXP && LENGTH(s) >= 1 && STRING_ELT(s, 0) != NA_STRING);
 }
-
-static FILE *uncompress_file(char *filename, char *tempname)
-{
-  FILE *fp;
-  gzFile in;
-  char *fname;
-  static char *tmpdir = "c:/windows/temp";
-  
-  if (!filename) return NULL;
-  
-  if (!(in = gzopen(filename, "rb"))) {
-    return 0;
-  }
-  
-  fname = tempnam(tmpdir, "dg");
-  
-  if (!(fp = fopen(fname,"wb"))) {
-    return 0;
-  }
-  gz_uncompress(in, fp);
-  
-  fp = fopen(fname, "rb");
-  if (tempname) strcpy(tempname, fname);
-
-  free(fname);
-
-  return(fp);
-}  
 
 static
 SEXP dynListToSexp(DYN_LIST *dl) /* Create a list from a group of dl's */
@@ -150,7 +111,7 @@ dynGroupFileToSexp(SEXP call)
   SEXP retval, names, fname;
   char *filename; 
 
-  if (!isValidString(fname = CADR(call)))
+  if (!dg_isValidString(fname = CADR(call)))
     error("first argument must be a file name\n");
   
   filename = R_ExpandFileName(CHAR(STRING_ELT(fname,0)));
@@ -162,6 +123,7 @@ dynGroupFileToSexp(SEXP call)
     if (!fp) {
       error("error opening data file \"%s\".", filename);
     }
+    tempname[0] = 0;
   }
 
   else if ((suffix = strrchr(filename, '.')) &&
@@ -181,21 +143,34 @@ dynGroupFileToSexp(SEXP call)
   }
 
 
-  else if ((fp = uncompress_file(filename, tempname)) == NULL) {
-    char fullname[128];
-    sprintf(fullname,"%s.dg", filename);
-    if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-      sprintf(fullname,"%s.dgz", filename);
-      if ((fp = uncompress_file(fullname, tempname)) == NULL) {
-	error("dg_read: file %s not found", filename);
-      }
+  else {
+    /* gzip-compressed (.dgz etc.): decompress fully in memory, no temp file. */
+    char fullname[256];
+    int gstat;
+    if (!(dg = dfuCreateDynGroup(4))) {
+      error("dg_read: error creating new dyngroup");
     }
+    gstat = dguGzipFileToStruct(filename, dg);
+    if (gstat != DF_OK) {
+      snprintf(fullname, sizeof(fullname), "%s.dg", filename);
+      gstat = dguGzipFileToStruct(fullname, dg);
+    }
+    if (gstat != DF_OK) {
+      snprintf(fullname, sizeof(fullname), "%s.dgz", filename);
+      gstat = dguGzipFileToStruct(fullname, dg);
+    }
+    if (gstat != DF_OK) {
+      dfuFreeDynGroup(dg);
+      error("dg_read: file %s not found", filename);
+    }
+    goto process_dg;
   }
 
+  /* Only the raw uncompressed .dg branch reaches here (fp set above). */
   if (!(dg = dfuCreateDynGroup(4))) {
     error("error creating dyn group");
   }
-  
+
   if (!dguFileToStruct(fp, dg)) {
     fclose(fp);
     if (tempname[0]) unlink(tempname);
@@ -300,7 +275,7 @@ dynGroupBufferToSexp(SEXP call)
   int res;
   unsigned char *in_buf, *out_buf;
   
-  if (!isValidString(CADR(call)))
+  if (!dg_isValidString(CADR(call)))
     error("input argument must be a string\n");
   in_buf = CHAR(STRING_ELT(CADR(call),0));
   in_length = LENGTH(STRING_ELT(CADR(call),0));
@@ -455,7 +430,7 @@ SexpToDynGroupFile(SEXP call)
   if (!isNewList(s = CADR(call)))
     error("first argument must be a list\n");
 
-  if (!isValidString(fname = CADDR(call)))
+  if (!dg_isValidString(fname = CADDR(call)))
     error("second argument must be a file name\n");
   filename = R_ExpandFileName(CHAR(STRING_ELT(fname,0)));
   
