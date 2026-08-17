@@ -26,22 +26,21 @@ cd matlab
 build_dgread
 ```
 
-Or manually:
+`build_dgread` compiles in two steps, and both are necessary:
 
-```matlab
-mex -R2018a -v dg_read.cpp ...
-    ../src/core/df.c ...
-    ../src/core/dfutils.c ...
-    ../src/core/dynio.c ...
-    ../src/core/flipfuncs.c ...
-    ../src/core/lz4utils.c ...
-    ../src/lz4/lz4.c ...
-    ../src/lz4/lz4hc.c ...
-    ../src/lz4/lz4frame.c ...
-    ../src/lz4/xxhash.c ...
-    -I../src/core -I../src/lz4 ...
-    -lz
-```
+1. The C sources (`../src/core`, `../src/lz4`, and the vendored `../src/zlib`)
+   are compiled to object files with the **C** compiler.
+2. `dg_read.cpp` is compiled and linked against those objects with the **C++**
+   compiler, using the R2018a MEX API.
+
+Passing the `.c` files and `dg_read.cpp` to a single `mex` call does *not*
+work: `mex` selects one compiler for the whole source list, so the C core gets
+fed to `clang++`/`cl` as C++ and fails to compile (for example, `dfutils.c`
+uses `new` as a variable name, and C's implicit `void *` conversions are
+errors in C++).
+
+zlib is vendored in `../src/zlib` and compiled in, so no system zlib is
+required on any platform.
 
 ## Usage
 
@@ -92,10 +91,5 @@ Make sure you're using the correct MEX file for your platform and MATLAB version
 
 ### Missing zlib
 
-On Linux, install zlib development package:
-```bash
-sudo apt install zlib1g-dev  # Debian/Ubuntu
-sudo yum install zlib-devel  # RHEL/CentOS
-```
-
-On macOS, zlib is included with Xcode Command Line Tools.
+Not applicable since 1.1.6: zlib is vendored in `../src/zlib` and compiled
+directly into the MEX file, so no system or vcpkg zlib is needed.
