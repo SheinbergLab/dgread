@@ -58,10 +58,13 @@ py-modules = ["dgread_utils"]
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
 skip = "*-win32 *-manylinux_i686 *-musllinux*"
-# Import the built wheel and run the converter tests against tests/data.
-# pandas/awkward tests skip themselves when the extra is not installed.
+# Import the built wheel and run python/tests against ../tests/data.
+# {package} is this directory whichever directory cibuildwheel runs from.
+# pandas/awkward tests skip themselves when the extra is not installed;
+# on cp39 pip resolves the last releases that still ship 3.9 wheels
+# (pandas 2.3.x, awkward-cpp 51), so the step installs everywhere.
 test-requires = ["pytest", "pandas", "awkward"]
-test-command = "pytest {project}/python/tests"
+test-command = "pytest {package}/tests"
 
 [tool.cibuildwheel.linux]
 archs = ["x86_64", "aarch64"]
