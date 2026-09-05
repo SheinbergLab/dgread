@@ -384,10 +384,17 @@ DgreadMethods[] =
     { NULL, NULL },
   };
 
+/*
+ * This extension is built as dgread._dgread. The public `dgread` package
+ * (python/src/dgread/__init__.py) re-exports dgread(), fromString() and
+ * fromString64() from here and adds the pure-Python converters
+ * (to_pandas, to_awkward) on top, so `import dgread; dgread.dgread(f)`
+ * keeps working unchanged.
+ */
 #if PY_MAJOR_VERSION >= 3
 	struct PyModuleDef dgread_def = {
 		PyModuleDef_HEAD_INIT,
-		"dgread",
+		"dgread._dgread",
 		NULL,
 		-1,
 		DgreadMethods,
@@ -400,16 +407,16 @@ int init_numpy()
   return 1;
 }
 
-PyMODINIT_FUNC PyInit_dgread()
+PyMODINIT_FUNC PyInit__dgread()
 {
   init_numpy();
   return(PyModule_Create(&dgread_def));
 }
 #else
 
-void initdgread()
+void init_dgread()
 {
-  Py_InitModule("dgread", DgreadMethods);
+  Py_InitModule("_dgread", DgreadMethods);
   import_array1(0);
 }
 

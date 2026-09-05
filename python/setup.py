@@ -80,8 +80,10 @@ else:
     # ./configure). We vendor the unconfigured zconf.h, so define it here.
     define_macros.append(('Z_HAVE_UNISTD_H', '1'))
 
+# Built as the private submodule dgread._dgread; the public API is the
+# dgread package in src/dgread/, which re-exports it.
 dgread_ext = Extension(
-    'dgread',
+    'dgread._dgread',
     sources=sources,
     include_dirs=include_dirs,
     library_dirs=library_dirs,

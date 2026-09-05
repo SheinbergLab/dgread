@@ -34,6 +34,13 @@ print(f"Mean RT: {data['rt'].mean():.1f} ms")
 # Ragged data works naturally
 for i, trial_em in enumerate(data['em'][:3]):
     print(f"Trial {i}: {len(trial_em)} eye samples")
+
+# One row per trial in pandas (pip install "dgread[pandas]")
+df = dgread.to_pandas(['day1.dgz', 'day2.dgz'])
+
+# Ragged columns as real axes in awkward (pip install "dgread[awkward]")
+a = dgread.to_awkward('session.dgz')
+peak = ak.max(abs(a.em[:, 1:] - a.em[:, :-1]), axis=1)   # per trial, no loop
 ```
 
 ### MATLAB
