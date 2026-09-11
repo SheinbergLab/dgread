@@ -14,13 +14,27 @@ This directory contains the shared C code used by all language bindings.
 ### Utility headers
 - `utilc.h` - Common utility macros and definitions
 
+## Where these files come from
+
+They are a verbatim copy of `dlsh/src/lablib` (the library dlsh, dserv and
+stim2 build from).  Do not edit them here; fix upstream and pull:
+
+```bash
+scripts/sync-core.sh pull ../dlsh     # copies lablib -> src/core
+```
+
 ## Usage by Language Bindings
 
-Each binding includes these sources in its build:
+- **Python**: `python/setup.py` compiles `../src/core/*.c` directly.
+- **MATLAB**: `matlab/build_dgread.m` compiles `../src/core/*.c` directly.
+- **R**: `R CMD build` only sees files inside `R/`, so `R/src/` holds a
+  generated copy of `src/core` and `src/lz4`.  Regenerate it after every
+  core change, and commit the result:
 
-- **Python**: `python/setup.py` references `../src/core/*.c`
-- **MATLAB**: MEX compilation includes these sources
-- **R**: `R/src/Makevars` includes these sources
+  ```bash
+  scripts/sync-core.sh r        # src/core + src/lz4 -> R/src
+  scripts/sync-core.sh check    # exit 1 if R/src has drifted
+  ```
 
 ## Modifying Core Code
 

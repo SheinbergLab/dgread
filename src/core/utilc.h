@@ -7,6 +7,8 @@
 
 #ifndef __UTILC_H__
 #define __UTILC_H__
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,6 +39,13 @@ extern char *next_matching_file(void);
 extern char *first_matching_file(void);
 extern char **all_matching_files(void);
 extern int  n_matching_files(void);
+/* bounded filename component helpers: size = dst bytes incl. NUL;
+   always NUL-terminate, truncate if needed */
+extern int  file_pathname_n(char *dst, size_t size, const char *name);
+extern int  file_basename_n(char *dst, size_t size, const char *name);
+extern int  file_rootname_n(char *dst, size_t size, const char *name);
+
+/* legacy unbounded forms, kept for ABI compatibility only; do not use */
 extern int  file_pathname(char *,char *);
 extern int  file_basename(char *,char *);
 extern int  file_rootname(char *rootname, char *name);

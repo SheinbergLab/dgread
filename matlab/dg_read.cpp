@@ -235,6 +235,11 @@ public:
             }
             if (gstat != DF_OK) {
                 dfuFreeDynGroup(dg);
+                // 0 = could not open/inflate; DF_ABORT = opened but did not parse.
+                if (gstat == DF_ABORT) {
+                    throwError("dg_read: file " + filename +
+                               " is not a valid dg file (corrupt, or written by a newer dlsh)");
+                }
                 throwError("dg_read: file " + filename + " not found");
             }
             dgLoaded = true;
@@ -249,11 +254,13 @@ public:
                 throwError("Error creating dyn group.");
             }
 
-            if (!dguFileToStruct(fp, dg)) {
+            // DF_ABORT (3) is truthy: test against DF_OK, never with `!`.
+            if (dguFileToStruct(fp, dg) != DF_OK) {
                 dfuFreeDynGroup(dg);
                 fclose(fp);
                 if (needCleanup) unlink(tempname);
-                throwError("dg_read: file " + filename + " not recognized as dg format");
+                throwError("dg_read: file " + filename +
+                           " is not a valid dg file (corrupt, or written by a newer dlsh)");
             }
             fclose(fp);
             if (needCleanup) unlink(tempname);

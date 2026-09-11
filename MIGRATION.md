@@ -7,7 +7,9 @@ This document describes how to migrate your existing dgread repository to the ne
 ```
 dgread/
 ├── src/
-│   ├── core/           # Shared C sources (ONE copy!)
+│   ├── core/           # Shared C sources (copied from dlsh/src/lablib;
+│   │                   #  R/src/ carries a generated copy -- see
+│   │                   #  scripts/sync-core.sh)
 │   │   ├── df.c
 │   │   ├── df.h
 │   │   ├── dfutils.c

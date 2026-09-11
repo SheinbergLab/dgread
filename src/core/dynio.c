@@ -143,21 +143,9 @@ static int get_list_length(DYN_LIST *dl)
   vals = (DYN_LIST **) DYN_LIST_VALS(dl);
 
   if (DYN_LIST_DATATYPE(dl) != DF_LIST) {
-    switch (DYN_LIST_DATATYPE(dl)) {
-    case DF_LONG:
-    case DF_FLOAT:
-      return 4*DYN_LIST_N(dl);
-      break;
-    case DF_SHORT:
-      return 2*DYN_LIST_N(dl);
-      break;
-    case DF_STRING:
+    if (DYN_LIST_DATATYPE(dl) == DF_STRING)
       return 8*DYN_LIST_N(dl);	/* just a guess */
-      break;
-    case DF_CHAR:
-      return DYN_LIST_N(dl);
-      break;
-    }
+    return (int) (dfuDatatypeSize(DYN_LIST_DATATYPE(dl)) * DYN_LIST_N(dl));
   }
   else {
     vals = (DYN_LIST **) DYN_LIST_VALS(dl);
@@ -291,12 +279,14 @@ int dgReadDynGroup(char *filename, DYN_GROUP *dg)
  * dguGzipFileToStruct -- read a gzip-compressed dg file (.dgz) fully into
  * memory and parse it directly, with NO temporary file.  The whole gzip
  * stream is inflated into a single realloc-grown buffer, then handed to
- * dguBufferToStruct (which copies all data out via the vget_* helpers, so
- * the buffer is freed immediately after).  This is the gzip analogue of the
- * in-memory LZ4 path in dgReadDynGroup() above, and replaces the old
- * tmpnam()-based decompress-to-temp-file approach.
+ * dguBufferToStruct.  The parser copies all data out of the buffer (the
+ * vget_* helpers memcpy / per-string calloc), so the buffer is freed
+ * immediately afterwards.  This is the gzip analogue of the in-memory LZ4
+ * path in dgReadDynGroup() above, and replaces the old tmpnam()-based
+ * decompress-to-temp-file approach.
  *
- * Returns DF_OK (1) on success, 0 on any failure (open / decompress / parse).
+ * Returns DF_OK (1) on success, 0 on any failure (open / decompress / parse),
+ * matching the failure convention of dgReadDynGroup().
  */
 int dguGzipFileToStruct(char *filename, DYN_GROUP *dg)
 {
@@ -312,6 +302,9 @@ int dguGzipFileToStruct(char *filename, DYN_GROUP *dg)
   for (;;) {
     int len;
 
+    /* dguBufferToStruct takes an int length; refuse anything that would
+       not fit (also keeps the size_t arithmetic below well clear of
+       overflow on the platforms we build). */
     if (total > (size_t) INT_MAX - CHUNK - 1) {
       fprintf(stderr, "dg: \"%s\" too large to decompress in memory\n",
 	      filename);
@@ -342,16 +335,21 @@ int dguGzipFileToStruct(char *filename, DYN_GROUP *dg)
   }
 
   if (gzclose(in) != Z_OK) { free(buf); return 0; }
-  if (total == 0)          { free(buf); return 0; }
+  if (total == 0)          { free(buf); return 0; }	/* nothing decompressed */
 
+  /* 2nd arg is the total decompressed byte count (the EOF bound the parser
+     uses) -- exactly as the LZ4 path passes its `size` above. */
   status = dguBufferToStruct(buf, (int) total, dg);
-  free(buf);
+  free(buf);					/* parser copied everything out */
   return status;
 }
 
 #ifdef COMPRESSION
-/* Legacy entry point; the in-memory dguGzipFileToStruct() above is the real
-   implementation now (no temp file). */
+/*
+ * Legacy entry point.  The in-memory dguGzipFileToStruct() above is the real
+ * implementation now (no temp file); keep this thin wrapper for any external
+ * caller still referencing the symbol under -DCOMPRESSION.
+ */
 int dgReadDynGroupCompressed(char *filename, DYN_GROUP *dg)
 {
   return dguGzipFileToStruct(filename, dg);
@@ -729,7 +727,7 @@ void read_version(FILE *InFP, FILE *OutFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
 
   /* 
@@ -745,7 +743,7 @@ void read_version(FILE *InFP, FILE *OutFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return;
     }
   }
   else dgFlipEvents = 0;
@@ -764,7 +762,7 @@ void read_float(char type, FILE *InFP, FILE *OutFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
   if (dgFlipEvents) val = flipfloat(val);
 
@@ -777,7 +775,7 @@ void read_char(char type, FILE *InFP, FILE *OutFP)
   char val;
   if (fread(&val, sizeof(char), 1, InFP) != 1) {
      fprintf(stderr,"Error reading char val\n");
-     exit(-1);
+     return;
   }
   fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), val);
 }
@@ -790,7 +788,7 @@ void read_long(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&val, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading int val\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) val = fliplong(val);
@@ -805,7 +803,7 @@ void read_short(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&val, sizeof(short), 1, InFP) != 1) {
     fprintf(stderr,"Error reading short val\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) val = flipshort(val);
@@ -824,7 +822,7 @@ void read_string(char type, FILE *InFP, FILE *OutFP)
 
   if (fread(&length, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) length = fliplong(length);
@@ -833,7 +831,7 @@ void read_string(char type, FILE *InFP, FILE *OutFP)
     
     if (fread(str, length, 1, InFP) != 1) {
       fprintf(stderr,"Error reading\n");
-      exit(-1);
+      return;
     }
   }
 
@@ -850,7 +848,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
 
   if (fread(&n, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    return;
   }
   if (dgFlipEvents) n = fliplong(n);
   fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type),n);
@@ -858,7 +856,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
   for (i = 0; i < n; i++) {
     if (fread(&length, sizeof(int), 1, InFP) != 1) {
       fprintf(stderr,"Error reading string length\n");
-      exit(-1);
+      return;
     }
     if (dgFlipEvents) length = fliplong(length);
     
@@ -868,7 +866,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
       
       if (fread(str, length, 1, InFP) != 1) {
 	fprintf(stderr,"Error reading\n");
-	exit(-1);
+	return;
       }
     }
     
@@ -885,7 +883,7 @@ void read_chars(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nchars, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of chars\n");
-    exit(-1);
+    return;
   }
 
   if (dgFlipEvents) nchars = fliplong(nchars);
@@ -893,12 +891,12 @@ void read_chars(char type, FILE *InFP, FILE *OutFP)
   if (nchars) {
     if (!(vals = (char *) calloc(nchars, sizeof(char)))) {
       fprintf(stderr,"Error allocating memory for char array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(char), nchars, InFP) != nchars) {
       fprintf(stderr,"Error reading char array\n");
-      exit(-1);
+      return;
     }
   }
   
@@ -919,7 +917,7 @@ void read_longs(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nlongs, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of longs\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) nlongs = fliplong(nlongs);
@@ -927,12 +925,12 @@ void read_longs(char type, FILE *InFP, FILE *OutFP)
   if (nlongs) {
     if (!(vals = (int *) calloc(nlongs, sizeof(int)))) {
       fprintf(stderr,"Error allocating memory for long array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(int), nlongs, InFP) != nlongs) {
       fprintf(stderr,"Error reading int array\n");
-      exit(-1);
+      return;
     }
     
     if (dgFlipEvents) fliplongs(nlongs, vals);
@@ -955,7 +953,7 @@ void read_shorts(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nshorts, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) nshorts = fliplong(nshorts);
@@ -963,12 +961,12 @@ void read_shorts(char type, FILE *InFP, FILE *OutFP)
   if (nshorts) {
     if (!(vals = (short *) calloc(nshorts, sizeof(short)))) {
       fprintf(stderr,"Error allocating memory for short array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(short), nshorts, InFP) != nshorts) {
       fprintf(stderr,"Error reading short array\n");
-      exit(-1);
+      return;
     }
     
     if (dgFlipEvents) flipshorts(nshorts, vals);
@@ -990,7 +988,7 @@ void read_floats(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nfloats, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
+    return;
   }
   
   if (dgFlipEvents) nfloats = fliplong(nfloats);
@@ -998,12 +996,12 @@ void read_floats(char type, FILE *InFP, FILE *OutFP)
   if (nfloats) {
     if (!(vals = (float *) calloc(nfloats, sizeof(float)))) {
       fprintf(stderr,"Error allocating memory for float array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(float), nfloats, InFP) != nfloats) {
       fprintf(stderr,"Error reading float array\n");
-      exit(-1);
+      return;
     }
     
     if (dgFlipEvents) flipfloats(nfloats, vals);
@@ -1047,7 +1045,7 @@ int vread_version(float *version, FILE *OutFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return(sizeof(float));
     }
   }
   else dgFlipEvents = 0;
@@ -1168,7 +1166,7 @@ int vread_longs(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
       fprintf(stderr,"dgutils: error allocating space for int array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(int));
     }
     memcpy(vals, vl, sizeof(int)*nvals);
 
@@ -1200,7 +1198,7 @@ int vread_shorts(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
       fprintf(stderr,"dgutils: error allocating space for short array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(short));
     }
     memcpy(vals, vl, sizeof(short)*nvals);
     
@@ -1232,7 +1230,7 @@ int vread_chars(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (char *) calloc(nvals, sizeof(char)))) {
       fprintf(stderr,"dgutils: error allocating space for char array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(char));
     }
     memcpy(vals, vl, sizeof(char)*nvals);
   }
@@ -1262,7 +1260,7 @@ int vread_floats(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
       fprintf(stderr,"dgutils: error allocating space for float array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(float));
     }
     memcpy(vals, vl, sizeof(float)*nvals);
     
@@ -1298,7 +1296,7 @@ void skip_version(FILE *InFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
 
   /* 
@@ -1314,7 +1312,7 @@ void skip_version(FILE *InFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return;
     }
   }
   else dgFlipEvents = 0;
@@ -1374,7 +1372,7 @@ static int skip_longs(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of ints\n");
-    exit(-1);
+    return(0);
   }
   if (dgFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(int)));
@@ -1385,7 +1383,7 @@ static int skip_shorts(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
+    return(0);
   }
   if (dgFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(short)));
@@ -1396,7 +1394,7 @@ static int skip_floats(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
+    return(0);
   }
   if (dgFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(float)));
@@ -1425,7 +1423,7 @@ int vskip_version(float *version)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return(sizeof(float));
     }
   }
   else dgFlipEvents = 0;
@@ -1505,17 +1503,58 @@ static int vskip_longs(int *n)
   -----                    File Get Functions                    -----
   -------------------------------------------------------------------*/
 
-static 
+/*
+ * The file get_ and buffer vget_ readers below used to exit(-1) on any
+ * short read, unknown version, or allocation failure -- which killed the
+ * whole host process (e.g. dserv) whenever a single .dg/.dgz or datapoint
+ * blob was corrupt or truncated.  They now set dgReadError and return safe
+ * defaults; the parser loops (dguFileToStruct/DynGroup/DynList and their
+ * dguBuffer counterparts) check the flag and abort cleanly.  Array and
+ * string counts are also bounded against the bytes actually remaining so
+ * a garbage length can't drive a huge allocation.
+ */
+static int dgReadError = 0;
+
+/* Bytes remaining from the current position to end of file, or -1 if it
+   can't be determined.  Called once per list (not per element), so the
+   seek cost is negligible for a conversion. */
+static long file_remaining(FILE *fp)
+{
+  long pos, end;
+  pos = ftell(fp);
+  if (pos < 0) return -1;
+  if (fseek(fp, 0, SEEK_END) != 0) return -1;
+  end = ftell(fp);
+  (void) fseek(fp, pos, SEEK_SET);
+  if (end < 0) return -1;
+  return end - pos;
+}
+
+/* True if a count is sane: non-negative and count*elemsize fits in what
+   remains of the file.  rem<0 (unknown size) only rejects negatives. */
+static int file_count_ok(FILE *fp, int count, size_t elemsize)
+{
+  long rem;
+  if (count < 0) return 0;
+  rem = file_remaining(fp);
+  if (rem < 0) return 1;
+  if ((long) count * (long) elemsize > rem) return 0;
+  return 1;
+}
+
+static
 void get_version(FILE *InFP, float *version)
 {
   float val;
+  *version = 0;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     dgReadError = 1;
+     return;
   }
 
-  /* 
-   * The VERSION should stay as a float, so that byte ordering can be 
+  /*
+   * The VERSION should stay as a float, so that byte ordering can be
    * checked dynamically.  If it doesn't match the first way, then the
    * dgFlipEvents flag is set and it's tried again.
    */
@@ -1527,7 +1566,9 @@ void get_version(FILE *InFP, float *version)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      dgFlipEvents = 0;
+      dgReadError = 1;
+      return;
     }
   }
   else dgFlipEvents = 0;
@@ -1535,13 +1576,15 @@ void get_version(FILE *InFP, float *version)
 }
 
 
-static 
+static
 void get_float(FILE *InFP, float *fval)
 {
   float val;
+  *fval = 0;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     dgReadError = 1;
+     return;
   }
   if (dgFlipEvents) val = flipfloat(val);
   *fval = val;
@@ -1551,23 +1594,27 @@ static
 void get_char(FILE *InFP, char *cval)
 {
   char val;
+  *cval = 0;
   if (fread(&val, sizeof(char), 1, InFP) != 1) {
      fprintf(stderr,"Error reading char val\n");
-     exit(-1);
+     dgReadError = 1;
+     return;
   }
   *cval = val;
 }
 
-static 
+static
 void get_long(FILE *InFP,  int *ival)
 {
   int val;
-  
+  *ival = 0;
+
   if (fread(&val, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading int val\n");
-    exit(-1);
+    dgReadError = 1;
+    return;
   }
-  
+
   if (dgFlipEvents) val = fliplong(val);
 
   *ival = val;
@@ -1577,12 +1624,14 @@ static
 void get_short(FILE *InFP,  short *sval)
 {
   short val;
-  
+  *sval = 0;
+
   if (fread(&val, sizeof(short), 1, InFP) != 1) {
     fprintf(stderr,"Error reading short val\n");
-    exit(-1);
+    dgReadError = 1;
+    return;
   }
-  
+
   if (dgFlipEvents) val = flipshort(val);
   *sval = val;
 }
@@ -1592,170 +1641,209 @@ void get_string(FILE *InFP, int *n, char **s)
 {
   int length;
   char *str;
-  
+
+  *n = 0;
+  *s = strdup("");
   if (fread(&length, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    dgReadError = 1;
+    return;
   }
-  
+
   if (dgFlipEvents) length = fliplong(length);
-  
+
+  if (!file_count_ok(InFP, length, sizeof(char))) {
+    fprintf(stderr,"Corrupt string length %d, aborting\n", length);
+    dgReadError = 1;
+    return;
+  }
+
   if (length) {
     str = (char *) malloc(length);
-    
-    if (fread(str, length, 1, InFP) != 1) {
+    if (!str || fread(str, length, 1, InFP) != 1) {
       fprintf(stderr,"Error reading\n");
-      exit(-1);
+      free(str);
+      dgReadError = 1;
+      return;
     }
+    free(*s);
+    *n = length;
+    *s = str;
   }
-  else str = strdup("");	/* malloc'd empty string */
-  
-  *n = length;
-  *s = str;
-}   
+}
 
 static
 void get_strings(FILE *InFP, int *num, char ***s)
 {
   int i, n, length;
   char **strings = NULL;
-  
+
+  *num = 0;
+  *s = NULL;
   if (fread(&n, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of strings\n");
-    exit(-1);
+    dgReadError = 1;
+    return;
   }
   if (dgFlipEvents) n = fliplong(n);
 
+  /* each string is at least a 4-byte length prefix */
+  if (!file_count_ok(InFP, n, sizeof(int))) {
+    fprintf(stderr,"Corrupt string-array count %d, aborting\n", n);
+    dgReadError = 1;
+    return;
+  }
+
   if (n) {
     strings = (char **) calloc(n, sizeof(char *));
+    if (!strings) { dgReadError = 1; return; }
     for (i = 0; i < n; i++) {
       get_string(InFP, &length, &strings[i]);
+      if (dgReadError) { n = i + 1; break; }
     }
   }
-  
+
   *num = n;
   *s = strings;
-}   
+}
 
 static
 void get_chars(FILE *InFP, int *n, char **v)
 {
   int nvals;
-  char *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of chars\n");
-    exit(-1);
-  }
-  
-  if (dgFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (char *) calloc(nvals, sizeof(char)))) {
-      fprintf(stderr,"Error allocating memory for char elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(char), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading char elements\n");
-      exit(-1);
-    }
+    dgReadError = 1;
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(char))) {
+    fprintf(stderr,"Corrupt char count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    char *vals = (char *) calloc(nvals, sizeof(char));
+    if (!vals || fread(vals, sizeof(char), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading char elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 static
 void get_shorts(FILE *InFP, int *n, short **v)
 {
   int nvals;
-  short *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
-  }
-  
-  if (dgFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
-      fprintf(stderr,"Error allocating memory for short elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(short), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading short elements\n");
-      exit(-1);
-    }
-  if (dgFlipEvents) flipshorts(nvals, vals);
+    dgReadError = 1;
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(short))) {
+    fprintf(stderr,"Corrupt short count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    short *vals = (short *) calloc(nvals, sizeof(short));
+    if (!vals || fread(vals, sizeof(short), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading short elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    if (dgFlipEvents) flipshorts(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 static
 void get_longs(FILE *InFP, int *n, int **v)
 {
   int nvals;
-  int *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of ints\n");
-    exit(-1);
-  }
-  
-  if (dgFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
-      fprintf(stderr,"Error allocating memory for long elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(int), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading long elements\n");
-      exit(-1);
-    }
-    
-    if (dgFlipEvents) fliplongs(nvals, vals);
+    dgReadError = 1;
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(int))) {
+    fprintf(stderr,"Corrupt int count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    int *vals = (int *) calloc(nvals, sizeof(int));
+    if (!vals || fread(vals, sizeof(int), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading long elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    if (dgFlipEvents) fliplongs(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 static
 void get_floats(FILE *InFP, int *n, float **v)
 {
   int nvals;
-  float *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
-  }
-  
-  if (dgFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
-      fprintf(stderr,"Error allocating memory for float elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(float), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading float elements\n");
-      exit(-1);
-    }
-    
-    if (dgFlipEvents) flipfloats(nvals, vals);
+    dgReadError = 1;
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(float))) {
+    fprintf(stderr,"Corrupt float count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    float *vals = (float *) calloc(nvals, sizeof(float));
+    if (!vals || fread(vals, sizeof(float), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading float elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    if (dgFlipEvents) flipfloats(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 /*--------------------------------------------------------------------
@@ -1771,10 +1859,15 @@ int vget_version(float *v, float *version)
     dgFlipEvents = 1;
     val = flipfloat(val);
     if (val != dgVersion) {
+      /* Corrupt/unknown version.  This used to exit(-1), which killed the
+         whole host process (e.g. dserv) when a single datapoint or file
+         was malformed.  Signal an error to the caller instead. */
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      dgFlipEvents = 0;
+      *version = val;
+      return(-1);
     }
   }
   else dgFlipEvents = 0;
@@ -1883,10 +1976,12 @@ int vget_shorts(int *n, int *nv, short **v)
   if (nvals) {
     if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
       fprintf(stderr,"dgutils: error allocating space for short array\n");
-      exit(-1);
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(short)*nvals);
-    
+
     if (dgFlipEvents) flipshorts(nvals, vals);
   }
 
@@ -1910,7 +2005,9 @@ int vget_chars(int *n, int *nv, char **v)
   if (nvals) {
     if (!(vals = (char *) calloc(nvals, sizeof(char)))) {
       fprintf(stderr,"dgutils: error allocating space for char array\n");
-      exit(-1);
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(char)*nvals);
   }
@@ -1935,10 +2032,12 @@ int vget_longs(int *n, int *nv, int **v)
   if (nvals) {
     if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
       fprintf(stderr,"dgutils: error allocating space for int array\n");
-      exit(-1);
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(int)*nvals);
-    
+
     if (dgFlipEvents) fliplongs(nvals, vals);
   }
 
@@ -1962,10 +2061,12 @@ int vget_floats(int *n, int *nv, float **v)
   if (nvals) {
     if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
       fprintf(stderr,"dgutils: error allocating space for float array\n");
-      exit(-1);
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(float)*nvals);
-    
+
     if (dgFlipEvents) flipfloats(nvals, vals);
   }
 
@@ -1985,13 +2086,15 @@ int dguFileToStruct(FILE *InFP, DYN_GROUP *dg)
 {
   int c, status = DF_OK;
   float version;
-  
+
+  dgReadError = 0;
+
   if (!confirm_magic_number(InFP)) {
     //    fprintf(stderr,"dgutils: file not recognized as dg format\n");
     return(0);
   }
-  
-  while(status == DF_OK && (c = getc(InFP)) != EOF) {
+
+  while(status == DF_OK && !dgReadError && (c = getc(InFP)) != EOF) {
     switch (c) {
     case END_STRUCT:
       status = DF_FINISHED;
@@ -2003,20 +2106,20 @@ int dguFileToStruct(FILE *InFP, DYN_GROUP *dg)
       status = dguFileToDynGroup(InFP, dg);
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 int dguFileToDynGroup(FILE *InFP, DYN_GROUP *dg)
 {
   int n = 0, nlists, c, status = DF_OK;
 
-  while(status == DF_OK && (c = getc(InFP)) != EOF) {
+  while(status == DF_OK && !dgReadError && (c = getc(InFP)) != EOF) {
     switch (c) {
     case END_STRUCT:
       status = DF_FINISHED;
@@ -2038,25 +2141,33 @@ int dguFileToDynGroup(FILE *InFP, DYN_GROUP *dg)
 	DYN_LIST *dl = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
 	DYN_LIST_INCREMENT(dl) = 10;
 	status = dguFileToDynList(InFP, dl);
+	if (status == DF_ABORT || dgReadError) {
+	  /* A list that failed mid-parse has no valid datatype (calloc'd
+	     zero, == DF_VERSION), and handing it to a caller that ignores
+	     our return value has crashed every binding that switches on
+	     datatype without a default.  Drop it. */
+	  dfuFreeDynList(dl);
+	  break;
+	}
 	dfuAddDynGroupExistingList(dg, DYN_LIST_NAME(dl), dl);
 	n++;
       }
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 int dguFileToDynList(FILE *InFP, DYN_LIST *dl)
 {
   int c, status = DF_OK;
 
-  while(status == DF_OK && (c = getc(InFP)) != EOF) {
+  while(status == DF_OK && !dgReadError && (c = getc(InFP)) != EOF) {
     switch (c) {
     case END_STRUCT:
       status = DF_FINISHED;
@@ -2148,6 +2259,15 @@ int dguFileToDynList(FILE *InFP, DYN_LIST *dl)
 	/* Figure out how many there are */
 	get_long(InFP, (int *) &n);
 
+	/* Reject a corrupt count: a sublist needs at least one byte (its
+	   DL_SUBLIST_TAG), so n can't exceed the bytes left in the file. */
+	if (dgReadError || !file_count_ok(InFP, n, 1)) {
+	  fprintf(stderr,"Corrupt list count %d, aborting\n", n);
+	  dgReadError = 1;
+	  status = DF_ABORT;
+	  break;
+	}
+
 	/* Set the datatype */
 	DYN_LIST_DATATYPE(dl) = DF_LIST;
 
@@ -2155,34 +2275,101 @@ int dguFileToDynList(FILE *InFP, DYN_LIST *dl)
 	DYN_LIST_INCREMENT(dl) = 10;
 	DYN_LIST_MAX(dl) = n ? n : 1;
 	DYN_LIST_N(dl) = n;
-	DYN_LIST_VALS(dl) = 
+	DYN_LIST_VALS(dl) =
 	  (DYN_LIST **) calloc(DYN_LIST_MAX(dl), sizeof(DYN_LIST *));
 	vals = (DYN_LIST **) DYN_LIST_VALS(dl);
 
 	/* Now fill up the list of lists by recursively calling this func */
 	for (i = 0; i < n; i++) {
+	  if ((c = getc(InFP)) != DL_SUBLIST_TAG) {
+	    DYN_LIST_N(dl) = i;
+	    status = DF_ABORT;
+	    break;
+	  }
 	  newlist = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
 	  DYN_LIST_INCREMENT(newlist) = 10;
-	  if ((c = getc(InFP)) != DL_SUBLIST_TAG) return(DF_ABORT);
 	  status = dguFileToDynList(InFP, newlist);
 	  vals[i] = newlist;
+	  if (status == DF_ABORT || dgReadError) { DYN_LIST_N(dl) = i + 1; break; }
 	}
+	if (status == DF_ABORT) break;
       }
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 
 /*--------------------------------------------------------------------
   -----         Buffer to Structure Transfer Functions           -----
   -------------------------------------------------------------------*/
+
+/*
+ * bd_array_fits
+ *
+ *   A length-prefixed array in the buffer is stored as a 4-byte count
+ *   followed by count*elemsize bytes of data.  On a corrupt or truncated
+ *   buffer (e.g. a partially-written stimdg blob from a failed datafile
+ *   conversion) the count field can be garbage, leading to enormous
+ *   allocations ("out of memory") and NULL lists ("Attempt to add null
+ *   list") downstream, and ultimately a segfault.
+ *
+ *   Returns 1 if the array fits within the bytes remaining in the buffer,
+ *   0 otherwise.  Peeks the count without advancing the read index.
+ */
+static long bd_remaining(BUF_DATA *bdata)
+{
+  return (long) BD_SIZE(bdata) - (long) BD_INDEX(bdata);
+}
+
+/* true if at least nbytes remain before the end of the buffer */
+static int bd_have(BUF_DATA *bdata, long nbytes)
+{
+  return bd_remaining(bdata) >= nbytes;
+}
+
+static int bd_array_fits(BUF_DATA *bdata, int elemsize)
+{
+  long remaining = bd_remaining(bdata);
+  int cnt;
+  if (remaining < (long) sizeof(int)) return 0;
+  memcpy(&cnt, BD_DATA(bdata), sizeof(int));
+  if (dgFlipEvents) cnt = fliplong(cnt);
+  if (cnt < 0) return 0;
+  /* each element needs elemsize bytes after the 4-byte count */
+  if ((long) cnt * (long) elemsize > remaining - (long) sizeof(int)) return 0;
+  return 1;
+}
+
+/* A DL_STRING_DATA_TAG array is: [int count][ (int len)(len bytes) ]*count.
+   Walk it entirely within the buffer to reject a truncated/corrupt run
+   before vget_strings() does unbounded per-string malloc/memcpy. */
+static int bd_string_array_fits(BUF_DATA *bdata)
+{
+  long remaining = bd_remaining(bdata);
+  long off = 0;
+  int i, count, len;
+  if (remaining < (long) sizeof(int)) return 0;
+  memcpy(&count, BD_DATA(bdata), sizeof(int));
+  if (dgFlipEvents) count = fliplong(count);
+  if (count < 0) return 0;
+  off = sizeof(int);
+  for (i = 0; i < count; i++) {
+    if (off + (long) sizeof(int) > remaining) return 0;
+    memcpy(&len, BD_DATA(bdata) + off, sizeof(int));
+    if (dgFlipEvents) len = fliplong(len);
+    if (len < 0) return 0;
+    off += (long) sizeof(int) + (long) len;
+    if (off > remaining) return 0;
+  }
+  return 1;
+}
 
 int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
 {
@@ -2191,7 +2378,10 @@ int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
   float version;
   BUF_DATA *bdata = (BUF_DATA *) calloc(1, sizeof(BUF_DATA));
 
+  dgReadError = 0;
+
   if (!vconfirm_magic_number((char *)vbuf)) {
+    free(bdata);
     return(0);
   }
 
@@ -2199,7 +2389,7 @@ int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
   BD_INDEX(bdata) = DF_MAGIC_NUMBER_SIZE;
   BD_SIZE(bdata) = bufsize;
 
-  while (status == DF_OK && BD_INDEX(bdata) < BD_SIZE(bdata)) {
+  while (status == DF_OK && !dgReadError && BD_INDEX(bdata) < BD_SIZE(bdata)) {
     BD_INCINDEX(bdata, advance_bytes);
     advance_bytes = 0;
     c = BD_GETC(bdata);
@@ -2208,21 +2398,26 @@ int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
       status = DF_FINISHED;
       break;
     case DG_VERSION_TAG:
-      advance_bytes += vget_version((float *) BD_DATA(bdata), &version);
+      if (!bd_have(bdata, sizeof(float))) { status = DF_ABORT; break; }
+      {
+	int vbytes = vget_version((float *) BD_DATA(bdata), &version);
+	if (vbytes < 0) { status = DF_ABORT; break; }
+	advance_bytes += vbytes;
+      }
       break;
     case DG_BEGIN_TAG:
       status = dguBufferToDynGroup(bdata, dg);
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
   free(bdata);
 
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg)
@@ -2230,7 +2425,7 @@ static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg)
   int n = 0, c, status = DF_OK, advance_bytes = 0;
   int nlists;
 
-  while (status == DF_OK && !BD_EOF(bdata)) {
+  while (status == DF_OK && !dgReadError && !BD_EOF(bdata)) {
     BD_INCINDEX(bdata, advance_bytes);
     advance_bytes = 0;
     c = BD_GETC(bdata);
@@ -2242,13 +2437,15 @@ static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg)
       {
 	char *string;
 	int n;
-	advance_bytes += vget_string((int *) BD_DATA(bdata), 
+	if (!bd_array_fits(bdata, 1)) { status = DF_ABORT; break; }
+	advance_bytes += vget_string((int *) BD_DATA(bdata),
 				     &n, &string);
 	strncpy(DYN_GROUP_NAME(dg), string, DYN_GROUP_NAME_SIZE-1);
 	free((void *) string);
       }
       break;
     case DG_NLISTS_TAG:
+      if (!bd_have(bdata, sizeof(int))) { status = DF_ABORT; break; }
       advance_bytes += vget_long((int *) BD_DATA(bdata), &nlists);
       break;
     case DG_DYNLIST_TAG:
@@ -2256,18 +2453,23 @@ static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg)
 	DYN_LIST *dl = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
 	DYN_LIST_INCREMENT(dl) = 10;
 	status = dguBufferToDynList(bdata, dl);
+	if (status == DF_ABORT || dgReadError) {
+	  /* See dguFileToDynGroup: never hand back a half-parsed list. */
+	  dfuFreeDynList(dl);
+	  break;
+	}
 	dfuAddDynGroupExistingList(dg, DYN_LIST_NAME(dl), dl);
 	n++;
       }
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
@@ -2275,7 +2477,7 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
   int c, status = DF_OK;
   int advance_bytes = 0;
 
-  while (status == DF_OK && !BD_EOF(bdata)) {
+  while (status == DF_OK && !dgReadError && !BD_EOF(bdata)) {
     BD_INCINDEX(bdata, advance_bytes);
     advance_bytes = 0;
     c = BD_GETC(bdata);
@@ -2284,11 +2486,13 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       status = DF_FINISHED;
       break;
     case DL_INCREMENT_TAG:
-      advance_bytes += vget_long((int *) BD_DATA(bdata), 
+      if (!bd_have(bdata, sizeof(int))) { status = DF_ABORT; break; }
+      advance_bytes += vget_long((int *) BD_DATA(bdata),
 				 (int *) &DYN_LIST_INCREMENT(dl));
       break;
     case DL_FLAGS_TAG:
-      advance_bytes += vget_long((int *) BD_DATA(bdata), 
+      if (!bd_have(bdata, sizeof(int))) { status = DF_ABORT; break; }
+      advance_bytes += vget_long((int *) BD_DATA(bdata),
 				 (int *) &DYN_LIST_FLAGS(dl));
       break;
     case DL_DATA_TAG:
@@ -2297,7 +2501,8 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	char *string;
 	int n;
-	advance_bytes += vget_string((int *) BD_DATA(bdata), 
+	if (!bd_array_fits(bdata, 1)) { status = DF_ABORT; break; }
+	advance_bytes += vget_string((int *) BD_DATA(bdata),
 				     &n, &string);
 	strncpy(DYN_LIST_NAME(dl), string, DYN_LIST_NAME_SIZE-1);
 	free((void *) string);
@@ -2307,6 +2512,9 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	char **data;
 	int n;
+	/* validate the whole string run fits before the unbounded reads
+	   inside vget_strings() */
+	if (!bd_string_array_fits(bdata)) { status = DF_ABORT; break; }
 	advance_bytes += vget_strings((int *) BD_DATA(bdata), &n, &data);
 	DYN_LIST_DATATYPE(dl) = DF_STRING;
 	DYN_LIST_MAX(dl) = n;
@@ -2323,6 +2531,7 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	float *data;
 	int n;
+	if (!bd_array_fits(bdata, sizeof(float))) { status = DF_ABORT; break; }
 	advance_bytes += vget_floats((int *) BD_DATA(bdata), &n, &data);
 	DYN_LIST_DATATYPE(dl) = DF_FLOAT;
 	DYN_LIST_MAX(dl) = n;
@@ -2335,6 +2544,7 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	int *data;
 	int n;
+	if (!bd_array_fits(bdata, sizeof(int))) { status = DF_ABORT; break; }
 	advance_bytes += vget_longs((int *) BD_DATA(bdata), &n, &data);
 	DYN_LIST_DATATYPE(dl) = DF_LONG;
 	DYN_LIST_MAX(dl) = n;
@@ -2347,6 +2557,7 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	short *data;
 	int n;
+	if (!bd_array_fits(bdata, sizeof(short))) { status = DF_ABORT; break; }
 	advance_bytes += vget_shorts((int *) BD_DATA(bdata), &n, &data);
 	DYN_LIST_DATATYPE(dl) = DF_SHORT;
 	DYN_LIST_MAX(dl) = n;
@@ -2358,6 +2569,7 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
       {
 	char *data;
 	int n;
+	if (!bd_array_fits(bdata, sizeof(char))) { status = DF_ABORT; break; }
 	advance_bytes += vget_chars((int *) BD_DATA(bdata), &n, &data);
 	DYN_LIST_DATATYPE(dl) = DF_CHAR;
 	DYN_LIST_MAX(dl) = n;
@@ -2371,11 +2583,15 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
 	DYN_LIST *newlist, **vals;
 	int n, i;
 
+	/* A list of sublists needs at least one byte per sublist (the
+	   DL_SUBLIST_TAG); reject a count that can't fit in the buffer. */
+	if (!bd_array_fits(bdata, 1)) { status = DF_ABORT; break; }
+
 	/* Figure out how many there are */
 	advance_bytes = vget_long((int *) BD_DATA(bdata), (int *) &n);
 	BD_INCINDEX(bdata, advance_bytes);
 	advance_bytes = 0;
-	
+
 	/* Set the datatype */
 	DYN_LIST_DATATYPE(dl) = DF_LIST;
 
@@ -2383,29 +2599,34 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
 	DYN_LIST_INCREMENT(dl) = 10;
 	DYN_LIST_MAX(dl) = n ? n : 1;
 	DYN_LIST_N(dl) = n;
-	DYN_LIST_VALS(dl) = 
+	DYN_LIST_VALS(dl) =
 	  (DYN_LIST **) calloc(DYN_LIST_MAX(dl), sizeof(DYN_LIST *));
 	vals = (DYN_LIST **) DYN_LIST_VALS(dl);
 
-	/* Now fill up the list of lists by recursively calling this func */
+	/* Now fill up the list of lists by recursively calling this func.
+	   Guard every iteration against a truncated buffer so a corrupt
+	   sublist count can't over-read or leave NULL holes. */
 	for (i = 0; i < n; i++) {
+	  if (BD_EOF(bdata)) { DYN_LIST_N(dl) = i; status = DF_ABORT; break; }
+	  c = BD_GETC(bdata);
+	  if (c != DL_SUBLIST_TAG) { DYN_LIST_N(dl) = i; status = DF_ABORT; break; }
 	  newlist = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
 	  DYN_LIST_INCREMENT(newlist) = 10;
-	  c = BD_GETC(bdata);
-	  if (c != DL_SUBLIST_TAG) return(DF_ABORT);
 	  status = dguBufferToDynList(bdata, newlist);
 	  vals[i] = newlist;
+	  if (status == DF_ABORT) { DYN_LIST_N(dl) = i + 1; break; }
 	}
+	if (status == DF_ABORT) break;
       }
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
       break;
     }
   }
-  if (status != DF_ABORT) return(DF_OK);
-  else return(status);
+  if (status == DF_ABORT || dgReadError) return(DF_ABORT);
+  return(DF_OK);
 }
 
 
@@ -2423,9 +2644,10 @@ void dguBufferToAscii(unsigned char *vbuf, int bufsize, FILE *OutFP)
 
   if (!vconfirm_magic_number((char *)vbuf)) {
     fprintf(stderr,"dgutils: file not recognized as dg format\n");
-    exit(-1);
+    dgPopStruct();
+    return;
   }
-  
+
   for (i = DG_MAGIC_NUMBER_SIZE; i < bufsize; i+=advance_bytes) {
     c = vbuf[i++];
     if (c == END_STRUCT) {
@@ -2480,7 +2702,7 @@ void dguBufferToAscii(unsigned char *vbuf, int bufsize, FILE *OutFP)
       advance_bytes = vread_long(c, (int *) &vbuf[i], OutFP);
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       break;
     }
   }
@@ -2550,7 +2772,7 @@ void dguFileToAscii(FILE *InFP, FILE *OutFP)
       read_long(c, InFP, OutFP);
       break;
     default:
-      fprintf(stderr,"unknown event type %d\n", c);
+      fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       break;
     }
   }

@@ -64,7 +64,7 @@ void read_version(FILE *InFP, FILE *OutFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
 
   /* 
@@ -80,7 +80,7 @@ void read_version(FILE *InFP, FILE *OutFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return;
     }
   }
   else dfFlipEvents = 0;
@@ -99,7 +99,7 @@ void read_float(char type, FILE *InFP, FILE *OutFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
   if (dfFlipEvents) val = flipfloat(val);
 
@@ -112,7 +112,7 @@ void read_char(char type, FILE *InFP, FILE *OutFP)
   char val;
   if (fread(&val, sizeof(char), 1, InFP) != 1) {
      fprintf(stderr,"Error reading char val\n");
-     exit(-1);
+     return;
   }
   fprintf(OutFP, "%-20s\t%d\n", dfGetTagName(type), val);
 }
@@ -125,7 +125,7 @@ void read_long(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&val, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading int val\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) val = fliplong(val);
@@ -140,7 +140,7 @@ void read_short(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&val, sizeof(short), 1, InFP) != 1) {
     fprintf(stderr,"Error reading short val\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) val = flipshort(val);
@@ -159,7 +159,7 @@ void read_string(char type, FILE *InFP, FILE *OutFP)
 
   if (fread(&length, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) length = fliplong(length);
@@ -168,7 +168,7 @@ void read_string(char type, FILE *InFP, FILE *OutFP)
     
     if (fread(str, length, 1, InFP) != 1) {
       fprintf(stderr,"Error reading\n");
-      exit(-1);
+      return;
     }
   }
 
@@ -185,7 +185,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
 
   if (fread(&n, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    return;
   }
   if (dfFlipEvents) n = fliplong(n);
   fprintf(OutFP, "%-20s\t%d\n", dfGetTagName(type),n);
@@ -193,7 +193,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
   for (i = 0; i < n; i++) {
     if (fread(&length, sizeof(int), 1, InFP) != 1) {
       fprintf(stderr,"Error reading string length\n");
-      exit(-1);
+      return;
     }
     if (dfFlipEvents) length = fliplong(length);
     
@@ -203,7 +203,7 @@ void read_strings(char type, FILE *InFP, FILE *OutFP)
       
       if (fread(str, length, 1, InFP) != 1) {
 	fprintf(stderr,"Error reading\n");
-	exit(-1);
+	return;
       }
     }
     
@@ -221,7 +221,7 @@ void read_longs(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nlongs, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of longs\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) nlongs = fliplong(nlongs);
@@ -229,12 +229,12 @@ void read_longs(char type, FILE *InFP, FILE *OutFP)
   if (nlongs) {
     if (!(vals = (int *) calloc(nlongs, sizeof(int)))) {
       fprintf(stderr,"Error allocating memory for long array\n");
-      exit(-1);
+      return;
     }
   
     if (fread(vals, sizeof(int), nlongs, InFP) != nlongs) {
       fprintf(stderr,"Error reading long array\n");
-      exit(-1);
+      return;
     }
   
     if (dfFlipEvents) fliplongs(nlongs, vals);
@@ -257,7 +257,7 @@ void read_shorts(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nshorts, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) nshorts = fliplong(nshorts);
@@ -265,12 +265,12 @@ void read_shorts(char type, FILE *InFP, FILE *OutFP)
   if (nshorts) {
     if (!(vals = (short *) calloc(nshorts, sizeof(short)))) {
       fprintf(stderr,"Error allocating memory for short array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(short), nshorts, InFP) != nshorts) {
       fprintf(stderr,"Error reading short array\n");
-      exit(-1);
+      return;
     }
     
     if (dfFlipEvents) flipshorts(nshorts, vals);
@@ -292,7 +292,7 @@ void read_floats(char type, FILE *InFP, FILE *OutFP)
   
   if (fread(&nfloats, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
+    return;
   }
   
   if (dfFlipEvents) nfloats = fliplong(nfloats);
@@ -300,12 +300,12 @@ void read_floats(char type, FILE *InFP, FILE *OutFP)
   if (nfloats) {
     if (!(vals = (float *) calloc(nfloats, sizeof(float)))) {
       fprintf(stderr,"Error allocating memory for float array\n");
-      exit(-1);
+      return;
     }
     
     if (fread(vals, sizeof(float), nfloats, InFP) != nfloats) {
       fprintf(stderr,"Error reading float array\n");
-      exit(-1);
+      return;
     }
     
     if (dfFlipEvents) flipfloats(nfloats, vals);
@@ -350,7 +350,7 @@ int vread_version(float *version, FILE *OutFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return(sizeof(float));
     }
   }
   else dfFlipEvents = 0;
@@ -472,7 +472,7 @@ int vread_longs(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
       fprintf(stderr,"dfutils: error allocating space for int array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(int));
     }
     memcpy(vals, vl, sizeof(int)*nvals);
 
@@ -504,7 +504,7 @@ int vread_shorts(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
       fprintf(stderr,"dfutils: error allocating space for short array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(short));
     }
     memcpy(vals, vl, sizeof(short)*nvals);
     
@@ -535,7 +535,7 @@ int vread_floats(char type, int *n, FILE *OutFP)
   if (nvals) {
     if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
       fprintf(stderr,"dfutils: error allocating space for float array\n");
-      exit(-1);
+      return(sizeof(int)+nvals*sizeof(float));
     }
     memcpy(vals, vl, sizeof(float)*nvals);
 
@@ -571,7 +571,7 @@ void skip_version(FILE *InFP)
   float val;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
 
   /* 
@@ -587,7 +587,7 @@ void skip_version(FILE *InFP)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return;
     }
   }
   else dfFlipEvents = 0;
@@ -647,7 +647,7 @@ static int skip_longs(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of ints\n");
-    exit(-1);
+    return(0);
   }
   if (dfFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(int)));
@@ -658,7 +658,7 @@ static int skip_shorts(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
+    return(0);
   }
   if (dfFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(short)));
@@ -669,7 +669,7 @@ static int skip_floats(FILE *InFP)
   int nvals;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
+    return(0);
   }
   if (dfFlipEvents) nvals = fliplong(nvals);
   return(skip_bytes(InFP, nvals*sizeof(float)));
@@ -698,7 +698,7 @@ int vskip_version(float *version)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      return(sizeof(float));
     }
   }
   else dfFlipEvents = 0;
@@ -778,17 +778,25 @@ static int vskip_longs(int *n)
   -----                    File Get Functions                    -----
   -------------------------------------------------------------------*/
 
-static 
+/*
+ * These legacy .df get_ readers used to exit(-1) on any short read,
+ * unknown version, or allocation failure -- killing the host process on a
+ * single corrupt/truncated file.  They now print the error and return
+ * with safe default outputs (empty list / zero) so the caller degrades
+ * gracefully instead of the whole program dying.
+ */
+static
 void get_version(FILE *InFP, float *version)
 {
   float val;
+  *version = 0;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
 
-  /* 
-   * The VERSION should stay as a float, so that byte ordering can be 
+  /*
+   * The VERSION should stay as a float, so that byte ordering can be
    * checked dynamically.  If it doesn't match the first way, then the
    * dfFlipEvents flag is set and it's tried again.
    */
@@ -800,7 +808,8 @@ void get_version(FILE *InFP, float *version)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      dfFlipEvents = 0;
+      return;
     }
   }
   else dfFlipEvents = 0;
@@ -808,13 +817,14 @@ void get_version(FILE *InFP, float *version)
 }
 
 
-static 
+static
 void get_float(FILE *InFP, float *fval)
 {
   float val;
+  *fval = 0;
   if (fread(&val, sizeof(float), 1, InFP) != 1) {
      fprintf(stderr,"Error reading float info\n");
-     exit(-1);
+     return;
   }
   if (dfFlipEvents) val = flipfloat(val);
   *fval = val;
@@ -824,23 +834,25 @@ static
 void get_char(FILE *InFP, char *cval)
 {
   char val;
+  *cval = 0;
   if (fread(&val, sizeof(char), 1, InFP) != 1) {
      fprintf(stderr,"Error reading char val\n");
-     exit(-1);
+     return;
   }
   *cval = val;
 }
 
-static 
+static
 void get_long(FILE *InFP,  int *ival)
 {
   int val;
-  
+  *ival = 0;
+
   if (fread(&val, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading long val\n");
-    exit(-1);
+    return;
   }
-  
+
   if (dfFlipEvents) val = fliplong(val);
 
   *ival = val;
@@ -850,12 +862,13 @@ static
 void get_short(FILE *InFP,  short *sval)
 {
   short val;
-  
+  *sval = 0;
+
   if (fread(&val, sizeof(short), 1, InFP) != 1) {
     fprintf(stderr,"Error reading short val\n");
-    exit(-1);
+    return;
   }
-  
+
   if (dfFlipEvents) val = flipshort(val);
   *sval = val;
 }
@@ -865,140 +878,138 @@ void get_string(FILE *InFP, int *n, char **s)
 {
   int length;
   static char *str = "";
-  
+
+  *n = 0;
+  *s = "";
   if (fread(&length, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading string length\n");
-    exit(-1);
+    return;
   }
-  
+
   if (dfFlipEvents) length = fliplong(length);
-  
+
   if (length) {
     str = (char *) malloc(length);
-    
-    if (fread(str, length, 1, InFP) != 1) {
+    if (!str || fread(str, length, 1, InFP) != 1) {
       fprintf(stderr,"Error reading\n");
-      exit(-1);
+      free(str);
+      return;
     }
   }
-  
+
   *n = length;
   *s = str;
-}   
+}
 
 static
 void get_strings(FILE *InFP, int *num, char ***s)
 {
   int n, i, length;
   char **strings = NULL;
-  
+
+  *num = 0;
+  *s = NULL;
   if (fread(&n, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of strings\n");
-    exit(-1);
+    return;
   }
   if (dfFlipEvents) n = fliplong(n);
 
-  if (n) strings = (char **) calloc(n, sizeof(char *));
-
-  for (i = 0; i < n; i++) {
-    get_string(InFP, &length, &strings[i]);
+  if (n < 0) return;
+  if (n) {
+    strings = (char **) calloc(n, sizeof(char *));
+    if (!strings) return;
+    for (i = 0; i < n; i++) {
+      get_string(InFP, &length, &strings[i]);
+    }
   }
-  
+
   *num = n;
   *s = strings;
-}   
+}
 
 static
 void get_shorts(FILE *InFP, int *n, short **v)
 {
   int nvals;
-  short *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of shorts\n");
-    exit(-1);
-  }
-  
-  if (dfFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
-      fprintf(stderr,"Error allocating memory for short elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(short), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading short elements\n");
-      exit(-1);
-    }
-  
-    if (dfFlipEvents) flipshorts(nvals, vals);
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dfFlipEvents) nvals = fliplong(nvals);
+  if (nvals < 0) return;
+
+  if (nvals) {
+    short *vals = (short *) calloc(nvals, sizeof(short));
+    if (!vals || fread(vals, sizeof(short), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading short elements\n");
+      free(vals);
+      return;
+    }
+    if (dfFlipEvents) flipshorts(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 static
 void get_longs(FILE *InFP, int *n, int **v)
 {
   int nvals;
-  int *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of ints\n");
-    exit(-1);
-  }
-  
-  if (dfFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
-      fprintf(stderr,"Error allocating memory for long elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(int), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading int elements\n");
-      exit(-1);
-    }
-    
-    if (dfFlipEvents) fliplongs(nvals, vals);
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dfFlipEvents) nvals = fliplong(nvals);
+  if (nvals < 0) return;
+
+  if (nvals) {
+    int *vals = (int *) calloc(nvals, sizeof(int));
+    if (!vals || fread(vals, sizeof(int), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading int elements\n");
+      free(vals);
+      return;
+    }
+    if (dfFlipEvents) fliplongs(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 static
 void get_floats(FILE *InFP, int *n, float **v)
 {
   int nvals;
-  float *vals = NULL;
 
+  *n = 0;
+  *v = NULL;
   if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
     fprintf(stderr,"Error reading number of floats\n");
-    exit(-1);
-  }
-  
-  if (dfFlipEvents) nvals = fliplong(nvals);
-  
-  if (nvals) {
-    if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
-      fprintf(stderr,"Error allocating memory for float elements\n");
-      exit(-1);
-    }
-    
-    if (fread(vals, sizeof(float), nvals, InFP) != nvals) {
-      fprintf(stderr,"Error reading float elements\n");
-      exit(-1);
-    }
-  
-  if (dfFlipEvents) flipfloats(nvals, vals);
+    return;
   }
 
-  *n = nvals;
-  *v = vals;
+  if (dfFlipEvents) nvals = fliplong(nvals);
+  if (nvals < 0) return;
+
+  if (nvals) {
+    float *vals = (float *) calloc(nvals, sizeof(float));
+    if (!vals || fread(vals, sizeof(float), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading float elements\n");
+      free(vals);
+      return;
+    }
+    if (dfFlipEvents) flipfloats(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
 }
 
 /*--------------------------------------------------------------------
@@ -1017,7 +1028,7 @@ int vget_version(float *v, float *version)
       fprintf(stderr,
 	      "Unable to read this version of data file (V %5.1f/%5.1f)\n",
 	      val, flipfloat(val));
-      exit(-1);
+      dfFlipEvents = 0;
     }
   }
   else dfFlipEvents = 0;
@@ -1125,7 +1136,8 @@ int vget_shorts(int *n, int *nv, short **v)
   if (nvals) {
     if (!(vals = (short *) calloc(nvals, sizeof(short)))) {
       fprintf(stderr,"dfutils: error allocating space for short array\n");
-      exit(-1);
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(short)*nvals);
 
@@ -1152,7 +1164,8 @@ int vget_longs(int *n, int *nv, int **v)
   if (nvals) {
     if (!(vals = (int *) calloc(nvals, sizeof(int)))) {
       fprintf(stderr,"dfutils: error allocating space for int array\n");
-      exit(-1);
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(int)*nvals);
   }
@@ -1179,13 +1192,14 @@ int vget_floats(int *n, int *nv, float **v)
   if (nvals) {
     if (!(vals = (float *) calloc(nvals, sizeof(float)))) {
       fprintf(stderr,"dfutils: error allocating space for float array\n");
-      exit(-1);
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
     }
     memcpy(vals, vl, sizeof(float)*nvals);
-    
+
     if (dfFlipEvents) flipfloats(nvals, vals);
   }
-  
+
   *nv = nvals;
   *v  = vals;
 
@@ -2321,7 +2335,7 @@ void dfuBufferToAscii(unsigned char *vbuf, int bufsize, FILE *OutFP)
 
   if (!vconfirm_magic_number((char *)vbuf)) {
     fprintf(stderr,"dfutils: file not recognized as df format\n");
-    exit(-1);
+    return;
   }
   
   for (i = DF_MAGIC_NUMBER_SIZE; i < bufsize; i+=advance_bytes) {
@@ -2386,7 +2400,7 @@ void dfuFileToAscii(FILE *InFP, FILE *OutFP)
 
   if (!confirm_magic_number(InFP)) {
     fprintf(stderr,"dfutils: file not recognized as df format\n");
-    exit(-1);
+    return;
   }
   
   while((c = getc(InFP)) != EOF) {
@@ -2864,6 +2878,31 @@ void dfuAddEmData(DYN_GROUP *emgroup, short hsamp, short vsamp)
 
 /***********************************************************************
  *
+ * dfuDatatypeSize()
+ *
+ *    Storage width of one element of the given datatype, or 0 if the
+ *  value is not a DYN_LIST element type.  Every allocation of list
+ *  storage in this file goes through here, so adding an element type
+ *  means adding one case below plus whatever the new type needs at the
+ *  Tcl and I/O layers -- not a sweep of sizeof() literals.
+ *
+ ***********************************************************************/
+
+size_t dfuDatatypeSize(int datatype)
+{
+  switch (datatype) {
+  case DF_LONG:   return sizeof(int);
+  case DF_SHORT:  return sizeof(short);
+  case DF_FLOAT:  return sizeof(float);
+  case DF_CHAR:   return sizeof(char);
+  case DF_STRING: return sizeof(char *);
+  case DF_LIST:   return sizeof(DYN_LIST *);
+  default:        return 0;
+  }
+}
+
+/***********************************************************************
+ *
  * dfuCreateDynList()
  *
  *    Create a dynamic list which grows and shrinks for holding events.
@@ -2886,7 +2925,21 @@ DYN_LIST *dfuCreateDynList(int datatype, int increment)
 
 DYN_LIST *dfuCreateNamedDynList(char *name, int datatype, int increment)
 {
-  DYN_LIST *dynlist = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
+  DYN_LIST *dynlist;
+  size_t elsize = dfuDatatypeSize(datatype);
+
+  /* An unknown datatype is a caller bug (e.g. a DSERV_ type passed where a
+     DF_ type was expected).  This used to be papered over by silently
+     handing back a DF_LONG list, which hid the bug and -- once wider
+     element types exist -- would allocate a 4-byte stride for 8-byte
+     values.  Refuse loudly instead; dslog maps its types explicitly now. */
+  if (!elsize) {
+    fprintf(stderr, "dfuCreateNamedDynList: unknown datatype %d (list \"%s\")\n",
+	    datatype, name ? name : "");
+    return(NULL);
+  }
+
+  dynlist = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
   if (!dynlist) {
     fprintf(stderr,"dlsh/dlwish: out of memory\n");
     return(NULL);
@@ -2902,40 +2955,15 @@ DYN_LIST *dfuCreateNamedDynList(char *name, int datatype, int increment)
   DYN_LIST_INCREMENT(dynlist) = increment;
   DYN_LIST_MAX(dynlist) = increment;
   DYN_LIST_DATATYPE(dynlist) = datatype;
-  switch (DYN_LIST_DATATYPE(dynlist)) {
-  case DF_LONG:
-    DYN_LIST_VALS(dynlist) = 
-      (int *)calloc(DYN_LIST_MAX(dynlist), sizeof(int));
-    break;
-  case DF_SHORT:
-    DYN_LIST_VALS(dynlist) = 
-      (short *)calloc(DYN_LIST_MAX(dynlist), sizeof(short));
-    break;
-  case DF_FLOAT:
-    DYN_LIST_VALS(dynlist) = 
-      (float *)calloc(DYN_LIST_MAX(dynlist), sizeof(float));
-    break;
-  case DF_CHAR:
-    DYN_LIST_VALS(dynlist) = 
-      (char *)calloc(DYN_LIST_MAX(dynlist), sizeof(char));
-    break;
-  case DF_STRING:
-    DYN_LIST_VALS(dynlist) = 
-      (char **)calloc(DYN_LIST_MAX(dynlist), sizeof(char *));
-    break;
-  case DF_LIST:
-    DYN_LIST_VALS(dynlist) = 
-      (DYN_LIST **)calloc(DYN_LIST_MAX(dynlist), sizeof(DYN_LIST *));
-    break;
-  }
-  
+  DYN_LIST_VALS(dynlist) = calloc(DYN_LIST_MAX(dynlist), elsize);
+
   if (!DYN_LIST_VALS(dynlist)) {
     free(dynlist);
     fprintf(stderr,"dlsh/dlwish: out of memory\n");
     return(NULL);
   }
   DYN_LIST_N(dynlist) = 0;
-  
+
   return(dynlist);
 }
 
@@ -2964,7 +2992,15 @@ DYN_LIST *dfuCreateNamedDynListWithVals(char *name, int t, int n, void *vals)
 {
   DYN_LIST *dynlist;
 
-//  if (!n) return NULL;
+  if (!dfuDatatypeSize(t)) {
+    fprintf(stderr, "dfuCreateNamedDynListWithVals: unknown datatype %d (list \"%s\")\n",
+	    t, name ? name : "");
+    return(NULL);
+  }
+
+  /* An empty list takes the ordinary allocation path (the caller's vals,
+     if any, are not adopted). */
+  if (!n) return dfuCreateNamedDynList(name, t, 10);
 
   dynlist = (DYN_LIST *) calloc(1, sizeof(DYN_LIST));
   if (!dynlist) {
@@ -2974,10 +3010,6 @@ DYN_LIST *dfuCreateNamedDynListWithVals(char *name, int t, int n, void *vals)
 
   if (name != DYN_LIST_NAME(dynlist))
     strncpy(DYN_LIST_NAME(dynlist), name, DYN_LIST_NAME_SIZE-1);
-
-  if (!n) {
-	return dfuCreateNamedDynList(name, t, 10);
-  }
 
   DYN_LIST_FLAGS(dynlist) = 0;
   DYN_LIST_INCREMENT(dynlist) = n > 1024 ? n / 2 : n;
@@ -3007,6 +3039,9 @@ DYN_LIST *dfuCopyDynList(DYN_LIST *old)
 
   memcpy(new, old, sizeof(DYN_LIST));
 
+  /* The copy is a distinct list: it must not inherit the original's handle. */
+  DYN_LIST_REFHANDLE(new) = NULL;
+
   /* 
    * This is a strange situation, but something that we take care of
    *  by making sure that the copy actually allocates some space
@@ -3020,33 +3055,9 @@ DYN_LIST *dfuCopyDynList(DYN_LIST *old)
   if (DYN_LIST_INCREMENT(old) == 0) {
     DYN_LIST_INCREMENT(new) = 2;
   }
-  
+
 
   switch (DYN_LIST_DATATYPE(old)) {
-  case DF_LONG:
-    DYN_LIST_VALS(new) = 
-      (int *)calloc(n, sizeof(int));
-    memcpy(DYN_LIST_VALS(new), DYN_LIST_VALS(old), 
-	   sizeof(int)*DYN_LIST_N(old));
-    break;
-  case DF_SHORT:
-    DYN_LIST_VALS(new) = 
-      (short *)calloc(n, sizeof(short));
-    memcpy(DYN_LIST_VALS(new), DYN_LIST_VALS(old), 
-	   sizeof(short)*DYN_LIST_N(old));
-    break;
-  case DF_FLOAT:
-    DYN_LIST_VALS(new) = 
-      (float *)calloc(n, sizeof(float));
-    memcpy(DYN_LIST_VALS(new), DYN_LIST_VALS(old), 
-	   sizeof(float)*DYN_LIST_N(old));
-    break;
-  case DF_CHAR:
-    DYN_LIST_VALS(new) = 
-      (char *)calloc(n, sizeof(char));
-    memcpy(DYN_LIST_VALS(new), DYN_LIST_VALS(old), 
-	   sizeof(char)*DYN_LIST_N(old));
-    break;
   case DF_STRING:
     {
       char **vals, **oldvals;
@@ -3070,8 +3081,23 @@ DYN_LIST *dfuCopyDynList(DYN_LIST *old)
       }
     }
     break;
+  default:
+    {
+      /* Every scalar element type is a flat memcpy of n * width bytes. */
+      size_t elsize = dfuDatatypeSize(DYN_LIST_DATATYPE(old));
+      if (!elsize) {
+	/* The struct memcpy above aliased old's storage; do not free it. */
+	fprintf(stderr, "dfuCopyDynList: unknown datatype %d (list \"%s\")\n",
+		DYN_LIST_DATATYPE(old), DYN_LIST_NAME(old));
+	free(new);
+	return(NULL);
+      }
+      DYN_LIST_VALS(new) = calloc(n, elsize);
+      memcpy(DYN_LIST_VALS(new), DYN_LIST_VALS(old), elsize*DYN_LIST_N(old));
+    }
+    break;
   }
-  
+
   return(new);
 }
 
@@ -3250,7 +3276,17 @@ void dfuResetDynList(DYN_LIST *dynlist)
 
 DYN_LIST *dfuResetDynListToType(DYN_LIST *dynlist, int datatype, int increment)
 {
+  size_t elsize;
+
   if (!dynlist) return NULL;
+
+  /* Check before touching the list so a bad type leaves it intact. */
+  elsize = dfuDatatypeSize(datatype);
+  if (!elsize) {
+    fprintf(stderr, "dfuResetDynListToType: unknown datatype %d (list \"%s\")\n",
+	    datatype, DYN_LIST_NAME(dynlist));
+    return NULL;
+  }
 
   dfuResetDynList(dynlist);
 
@@ -3261,34 +3297,8 @@ DYN_LIST *dfuResetDynListToType(DYN_LIST *dynlist, int datatype, int increment)
   DYN_LIST_INCREMENT(dynlist) = increment;
   DYN_LIST_MAX(dynlist) = increment;
   DYN_LIST_DATATYPE(dynlist) = datatype;
-  switch (DYN_LIST_DATATYPE(dynlist)) {
-  case DF_LONG:
-    DYN_LIST_VALS(dynlist) = 
-      (int *)realloc(DYN_LIST_VALS(dynlist), increment*sizeof(int));
-    break;
-  case DF_SHORT:
-    DYN_LIST_VALS(dynlist) = 
-      (short *)realloc(DYN_LIST_VALS(dynlist), increment*sizeof(short));
-    break;
-  case DF_FLOAT:
-    DYN_LIST_VALS(dynlist) = 
-      (float *)realloc(DYN_LIST_VALS(dynlist), increment*sizeof(float));
-    break;
-  case DF_CHAR:
-    DYN_LIST_VALS(dynlist) = 
-      (char *)realloc(DYN_LIST_VALS(dynlist), increment*sizeof(char));
-    break;
-  case DF_STRING:
-    DYN_LIST_VALS(dynlist) = 
-      (char **)realloc(DYN_LIST_VALS(dynlist), increment*sizeof(char *));
-    break;
-  case DF_LIST:
-    DYN_LIST_VALS(dynlist) = 
-      (DYN_LIST **)realloc(DYN_LIST_VALS(dynlist), 
-			   increment*sizeof(DYN_LIST *));
-    break;
-  }
-  
+  DYN_LIST_VALS(dynlist) = realloc(DYN_LIST_VALS(dynlist), increment*elsize);
+
   if (!DYN_LIST_VALS(dynlist)) {
     free(dynlist);
     fprintf(stderr,"dlsh/dlwish: out of memory\n");
@@ -3317,255 +3327,71 @@ void dfuResetDynGroup(DYN_GROUP *dyngroup)
 
 /***********************************************************************
  *
- * dfuAddDynListLong(DYN_LIST *, int val)
+ * dfuAddDynListXxx / dfuPrependDynListXxx / dfuInsertDynListXxx
  *
- *    Append an int to a dynamic list checking to ensure adequate
- *  storage.
+ *    Append, prepend, or insert one scalar element, growing the storage
+ *  by DYN_LIST_INCREMENT when full.  The four scalar element types share
+ *  one body, instantiated per type by DFU_DEFINE_SCALAR_OPS below; the
+ *  string and list variants follow by hand because they own what they
+ *  store.  A new scalar element type is one more instantiation.
  *
- ***********************************************************************/
-
-void dfuAddDynListLong(DYN_LIST *dynlist, int val)
-{
-  int *vals;
-  if (!dynlist) return;
-
-  vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (int *) realloc(vals, sizeof(int)*DYN_LIST_MAX(dynlist));
-  }
-  vals[DYN_LIST_N(dynlist)] = val;
-  DYN_LIST_N(dynlist)++;
-  
-  DYN_LIST_VALS(dynlist) = vals;
-}
-
-/***********************************************************************
- *
- * dfuPrependDynListLong(DYN_LIST *, int val)
- *
- *    Prepend an int to a dynamic list checking to ensure adequate
- *  storage.
+ *    None of these check that the list's datatype matches the value's:
+ *  that is the caller's contract, as it always has been.
  *
  ***********************************************************************/
 
-void dfuPrependDynListLong(DYN_LIST *dynlist, int val)
-{
-  dfuInsertDynListLong(dynlist, val, 0);
+#define DFU_DEFINE_SCALAR_OPS(SUFFIX, CTYPE)				\
+int dfuInsertDynList##SUFFIX(DYN_LIST *dynlist, CTYPE val, int pos)	\
+{									\
+  CTYPE *vals;								\
+  int i;								\
+									\
+  if (!dynlist || pos < 0 || pos > DYN_LIST_N(dynlist)) return 0;	\
+  vals = (CTYPE *) DYN_LIST_VALS(dynlist);				\
+									\
+  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {			\
+    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);		\
+    vals = (CTYPE *) realloc(vals, sizeof(CTYPE)*DYN_LIST_MAX(dynlist)); \
+  }									\
+									\
+  for (i = DYN_LIST_N(dynlist); i > pos; i--) {				\
+    vals[i] = vals[i-1];						\
+  }									\
+  vals[pos] = val;							\
+									\
+  DYN_LIST_N(dynlist)++;						\
+  DYN_LIST_VALS(dynlist) = vals;					\
+  return 1;								\
+}									\
+									\
+void dfuAddDynList##SUFFIX(DYN_LIST *dynlist, CTYPE val)		\
+{									\
+  CTYPE *vals;								\
+  if (!dynlist) return;							\
+									\
+  vals = (CTYPE *) DYN_LIST_VALS(dynlist);				\
+									\
+  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {			\
+    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);		\
+    vals = (CTYPE *) realloc(vals, sizeof(CTYPE)*DYN_LIST_MAX(dynlist)); \
+  }									\
+  vals[DYN_LIST_N(dynlist)] = val;					\
+  DYN_LIST_N(dynlist)++;						\
+									\
+  DYN_LIST_VALS(dynlist) = vals;					\
+}									\
+									\
+void dfuPrependDynList##SUFFIX(DYN_LIST *dynlist, CTYPE val)		\
+{									\
+  dfuInsertDynList##SUFFIX(dynlist, val, 0);				\
 }
 
-/***********************************************************************
- *
- * dfuInsertDynListLong(DYN_LIST *, int val, int pos)
- *
- *    Insert an int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
+DFU_DEFINE_SCALAR_OPS(Long,  int)
+DFU_DEFINE_SCALAR_OPS(Short, short)
+DFU_DEFINE_SCALAR_OPS(Float, float)
+DFU_DEFINE_SCALAR_OPS(Char,  unsigned char)
 
-int dfuInsertDynListLong(DYN_LIST *dynlist, int val, int pos)
-{
-  int *vals;
-  int i;
-
-  if (!dynlist || pos > DYN_LIST_N(dynlist)) return 0;
-  vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (int *) realloc(vals, sizeof(int)*DYN_LIST_MAX(dynlist));
-  }
-
-  for (i = DYN_LIST_N(dynlist); i > pos; i--) {
-    vals[i] = vals[i-1];
-  }
-  vals[pos] = val;
-
-  DYN_LIST_N(dynlist)++;
-  DYN_LIST_VALS(dynlist) = vals;
-  return 1;
-}
-
-/***********************************************************************
- *
- * dfuAddDynListShort(DYN_LIST *, short val)
- *
- *    Append a short int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuAddDynListShort(DYN_LIST *dynlist, short val)
-{
-  short *vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (short *) realloc(vals, sizeof(short)*DYN_LIST_MAX(dynlist));
-  }
-  vals[DYN_LIST_N(dynlist)] = val;
-  DYN_LIST_N(dynlist)++;
-  
-  DYN_LIST_VALS(dynlist) = vals;
-}
-
-/***********************************************************************
- *
- * dfuPrependDynListShort(DYN_LIST *, short val)
- *
- *    Prepend a short int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuPrependDynListShort(DYN_LIST *dynlist, short val)
-{
-  dfuInsertDynListShort(dynlist, val, 0);
-}
-
-int dfuInsertDynListShort(DYN_LIST *dynlist, short val, int pos)
-{
-  short *vals;
-  int i;
-
-  if (!dynlist || pos > DYN_LIST_N(dynlist)) return 0;
-  vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (short *) realloc(vals, sizeof(short)*DYN_LIST_MAX(dynlist));
-  }
-  for (i = DYN_LIST_N(dynlist); i > pos; i--) {
-    vals[i] = vals[i-1];
-  }
-  vals[pos] = val;
-  
-  DYN_LIST_N(dynlist)++;
-  DYN_LIST_VALS(dynlist) = vals;
-  return 1;
-}
-
-/***********************************************************************
- *
- * dfuAddDynListFloat(DYN_LIST *, float val)
- *
- *    Append a float int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuAddDynListFloat(DYN_LIST *dynlist, float val)
-{
-  float *vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (float *) realloc(vals, sizeof(float)*DYN_LIST_MAX(dynlist));
-  }
-  vals[DYN_LIST_N(dynlist)] = val;
-  DYN_LIST_N(dynlist)++;
-  
-  DYN_LIST_VALS(dynlist) = vals;
-}
-
-/***********************************************************************
- *
- * dfuPrependDynListFloat(DYN_LIST *, float val)
- *
- *    Prepend a float int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuPrependDynListFloat(DYN_LIST *dynlist, float val)
-{
-  dfuInsertDynListFloat(dynlist, val, 0);
-}
-
-int dfuInsertDynListFloat(DYN_LIST *dynlist, float val, int pos)
-{
-  int i;
-  float *vals;
-
-  if (!dynlist || pos > DYN_LIST_N(dynlist)) return 0;
-  vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (float *) realloc(vals, sizeof(float)*DYN_LIST_MAX(dynlist));
-  }
-
-  for (i = DYN_LIST_N(dynlist); i > pos; i--) {
-    vals[i] = vals[i-1];
-  }
-  vals[pos] = val;
-  
-  DYN_LIST_N(dynlist)++;
-  DYN_LIST_VALS(dynlist) = vals;
-  return 1;
-}
-
-/***********************************************************************
- *
- * dfuAddDynListChar(DYN_LIST *, char val)
- *
- *    Append a char int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuAddDynListChar(DYN_LIST *dynlist, unsigned char val)
-{
-  unsigned char *vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (unsigned char *) realloc(vals, sizeof(char)*DYN_LIST_MAX(dynlist));
-  }
-  vals[DYN_LIST_N(dynlist)] = val;
-  DYN_LIST_N(dynlist)++;
-  
-  DYN_LIST_VALS(dynlist) = vals;
-}
-
-/***********************************************************************
- *
- * dfuPrependDynListChar(DYN_LIST *, char val)
- *
- *    Prepend a char int to a dynamic list checking to ensure adequate
- *  storage.
- *
- ***********************************************************************/
-
-void dfuPrependDynListChar(DYN_LIST *dynlist, unsigned char val)
-{
-  dfuInsertDynListChar(dynlist, val, 0);
-}
-
-int dfuInsertDynListChar(DYN_LIST *dynlist, unsigned char val, int pos)
-{
-  unsigned char *vals;
-  int i;
-
-  if (!dynlist || pos > DYN_LIST_N(dynlist)) return 0;
-  vals = DYN_LIST_VALS(dynlist);
-
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (unsigned char *) realloc(vals, sizeof(char)*DYN_LIST_MAX(dynlist));
-  }
-
-  for (i = DYN_LIST_N(dynlist); i > pos; i--) {
-    vals[i] = vals[i-1];
-  }
-  vals[pos] = val;
-  
-  DYN_LIST_N(dynlist)++;
-  DYN_LIST_VALS(dynlist) = vals;
-  return 1;
-}
-
+#undef DFU_DEFINE_SCALAR_OPS
 
 /***********************************************************************
  *
@@ -3642,15 +3468,20 @@ void dfuAddDynListList(DYN_LIST *dynlist, DYN_LIST *newlist)
 {
   DYN_LIST **vals = (DYN_LIST **) DYN_LIST_VALS(dynlist);
 
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (DYN_LIST **) 
-      realloc(vals, sizeof(DYN_LIST *)*DYN_LIST_MAX(dynlist));
+  /* Check for null BEFORE growing/realloc: an early return after realloc()
+     would leave DYN_LIST_VALS() pointing at the just-freed old buffer (the
+     new pointer is only stored back at the end), causing a later double-free. */
+  if (!newlist) {
+#ifdef DF_WARN_NULL_LIST
+    fprintf(stderr, "Attempt to add null list\n");
+#endif
+    return;
   }
 
-  if (!newlist) {
-    fprintf(stderr, "Attempt to add null list\n");
-    return;
+  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
+    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
+    vals = (DYN_LIST **)
+      realloc(vals, sizeof(DYN_LIST *)*DYN_LIST_MAX(dynlist));
   }
 
   vals[DYN_LIST_N(dynlist)] = dfuCopyDynList(newlist);
@@ -3672,15 +3503,20 @@ void dfuMoveDynListList(DYN_LIST *dynlist, DYN_LIST *newlist)
 {
   DYN_LIST **vals = (DYN_LIST **) DYN_LIST_VALS(dynlist);
 
-  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
-    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
-    vals = (DYN_LIST **) 
-      realloc(vals, sizeof(DYN_LIST *)*DYN_LIST_MAX(dynlist));
+  /* Check for null BEFORE growing/realloc: an early return after realloc()
+     would leave DYN_LIST_VALS() pointing at the just-freed old buffer (the
+     new pointer is only stored back at the end), causing a later double-free. */
+  if (!newlist) {
+#ifdef DF_WARN_NULL_LIST
+    fprintf(stderr, "Attempt to add null list\n");
+#endif
+    return;
   }
 
-  if (!newlist) {
-    fprintf(stderr, "Attempt to add null list\n");
-    return;
+  if (DYN_LIST_N(dynlist) == DYN_LIST_MAX(dynlist)) {
+    DYN_LIST_MAX(dynlist) += DYN_LIST_INCREMENT(dynlist);
+    vals = (DYN_LIST **)
+      realloc(vals, sizeof(DYN_LIST *)*DYN_LIST_MAX(dynlist));
   }
 
   vals[DYN_LIST_N(dynlist)] = newlist;
@@ -4014,11 +3850,18 @@ void dfuFreeDynGroup(DYN_GROUP *dyngroup)
  *
  ***********************************************************************/
 
+void (*dfuDynListFreeHook)(DYN_LIST *dl) = NULL;
+
 void dfuFreeDynList(DYN_LIST *dynlist)
 {
   int i;
 
   if (!dynlist) return;
+
+  /* Let the Tcl layer detach any refcount handle before the memory goes.
+     The hook clears refhandle, so this never recurses. */
+  if (DYN_LIST_REFHANDLE(dynlist) && dfuDynListFreeHook)
+    dfuDynListFreeHook(dynlist);
 
 #ifdef DEBUG
   /* Should never get this message */

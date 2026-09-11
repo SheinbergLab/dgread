@@ -109,19 +109,48 @@ dynListToPyObject(DYN_LIST *dl) /* Create a list from a group of dl's */
       return retval;
     }
     break;
+  default:
+    /* A datatype this build does not know.  Raise rather than return NULL
+       silently: the callers below used to pass NULL straight into
+       PyDict_SetItemString, which segfaults the interpreter. */
+    PyErr_Format(PyExc_ValueError,
+		 "dgread: list \"%s\" has unsupported datatype %d "
+		 "(file written by a newer dlsh?)",
+		 DYN_LIST_NAME(dl), DYN_LIST_DATATYPE(dl));
+    return NULL;
   }
   return retval;
+}
+
+/* Convert every list in dg into a new dict; NULL (with a Python error set)
+   if any list cannot be converted.  Frees dg either way. */
+static PyObject *
+dynGroupToPyDict(DYN_GROUP *dg)
+{
+  int i;
+  PyObject *pygroup = PyDict_New();
+
+  for (i = 0; i < DYN_GROUP_NLISTS(dg); i++) {
+    PyObject *item = dynListToPyObject(DYN_GROUP_LIST(dg,i));
+    if (!item) {
+      Py_DECREF(pygroup);
+      dfuFreeDynGroup(dg);
+      return NULL;
+    }
+    PyDict_SetItemString(pygroup, DYN_LIST_NAME(DYN_GROUP_LIST(dg,i)), item);
+    Py_DECREF(item);
+  }
+  dfuFreeDynGroup(dg);
+  return pygroup;
 }
 
 PyObject *
 dynGroupFileToPyObject(char *filename)
 {
-  int i;
   DYN_GROUP *dg;
   FILE *fp;
   char *suffix;
   char tempname[128];
-  PyObject *pygroup;
   char message[256];
   
   /* No need to uncompress a .dg file */
@@ -178,7 +207,15 @@ dynGroupFileToPyObject(char *filename)
     }
     if (gstat != DF_OK) {
       dfuFreeDynGroup(dg);
-      PyErr_SetString(PyExc_ValueError, "dyngroup not found");
+      /* dguGzipFileToStruct returns 0 when the file cannot be opened or
+	 inflated and DF_ABORT when it opened but did not parse; tell the
+	 two apart, since the second means a corrupt or newer-format file. */
+      if (gstat == DF_ABORT)
+	PyErr_Format(PyExc_ValueError,
+		     "dg_read: %s is not a valid dg file "
+		     "(corrupt, or written by a newer dlsh)", filename);
+      else
+	PyErr_SetString(PyExc_ValueError, "dyngroup not found");
       return NULL;
     }
     goto process_dg;
@@ -187,52 +224,39 @@ dynGroupFileToPyObject(char *filename)
   /* Only the raw uncompressed .dg branch reaches here (fp set above). */
   dg = dfuCreateDynGroup(4);
 
-  if (!dguFileToStruct(fp, dg)) {
+  /* DF_ABORT (3) is truthy: test against DF_OK, never with `!`. */
+  if (dguFileToStruct(fp, dg) != DF_OK) {
     fclose(fp);
     if (tempname[0]) unlink(tempname);
-    PyErr_SetString(PyExc_ValueError,
-		    "dyngroup invalid");
+    dfuFreeDynGroup(dg);
+    PyErr_Format(PyExc_ValueError,
+		 "dg_read: %s is not a valid dg file "
+		 "(corrupt, or written by a newer dlsh)", filename);
     return NULL;
   }
   fclose(fp);
   if (tempname[0]) unlink(tempname);
 
  process_dg:
-  pygroup = PyDict_New();
-
-  for (i = 0; i < DYN_GROUP_NLISTS(dg); i++) {
-    PyDict_SetItemString(pygroup, 
-			 DYN_LIST_NAME(DYN_GROUP_LIST(dg,i)),
-			 dynListToPyObject(DYN_GROUP_LIST(dg,i)));
-  }
-
-  dfuFreeDynGroup(dg);
-  return pygroup;
+  return dynGroupToPyDict(dg);
 }
 
 PyObject *
 dynGroupBufferToPyObject(unsigned char *buf, int length)
 {
-  int i;
   DYN_GROUP *dg;
-  PyObject *pygroup;
-  
+
   dg = dfuCreateDynGroup(4);
 
-  if (!dguBufferToStruct(buf, length, dg)) {
+  /* DF_ABORT (3) is truthy: test against DF_OK, never with `!`. */
+  if (dguBufferToStruct(buf, length, dg) != DF_OK) {
+    dfuFreeDynGroup(dg);
     PyErr_SetString(PyExc_ValueError,
-		    "dyngroup invalid");
+		    "dyngroup invalid (corrupt, or written by a newer dlsh)");
     return NULL;
   }
-  
-  pygroup = PyDict_New();
-  for (i = 0; i < DYN_GROUP_NLISTS(dg); i++) {
-    PyDict_SetItemString(pygroup, 
-			 DYN_LIST_NAME(DYN_GROUP_LIST(dg,i)),
-			 dynListToPyObject(DYN_GROUP_LIST(dg,i)));
-  }
-  dfuFreeDynGroup(dg);
-  return pygroup;
+
+  return dynGroupToPyDict(dg);
 }
 
 

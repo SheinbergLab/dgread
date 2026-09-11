@@ -96,6 +96,15 @@ SEXP dynListToSexp(DYN_LIST *dl) /* Create a list from a group of dl's */
       UNPROTECT(1);
     }
     break;
+  default:
+    /* A datatype this build does not know.  Returning a C NULL here used to
+       reach SET_VECTOR_ELT and corrupt the result; return R's NULL and warn
+       so the rest of the group still loads. */
+    warning("dgread: list \"%s\" has unsupported datatype %d "
+	    "(file written by a newer dlsh?); returned as NULL",
+	    DYN_LIST_NAME(dl), DYN_LIST_DATATYPE(dl));
+    retval = R_NilValue;
+    break;
   }
   return retval;
 }
@@ -161,6 +170,11 @@ dynGroupFileToSexp(SEXP call)
     }
     if (gstat != DF_OK) {
       dfuFreeDynGroup(dg);
+      /* 0 = could not open/inflate; DF_ABORT = opened but did not parse
+	 (corrupt, or a newer format than this build understands). */
+      if (gstat == DF_ABORT)
+	error("dg_read: file %s is not a valid dg file (corrupt, or written by a newer dlsh)",
+	      filename);
       error("dg_read: file %s not found", filename);
     }
     goto process_dg;
@@ -171,10 +185,12 @@ dynGroupFileToSexp(SEXP call)
     error("error creating dyn group");
   }
 
-  if (!dguFileToStruct(fp, dg)) {
+  /* DF_ABORT (3) is truthy: test against DF_OK, never with `!`. */
+  if (dguFileToStruct(fp, dg) != DF_OK) {
     fclose(fp);
     if (tempname[0]) unlink(tempname);
-    error("dg_read: file %s not recognized as dg format", 
+    dfuFreeDynGroup(dg);
+    error("dg_read: file %s is not a valid dg file (corrupt, or written by a newer dlsh)",
 	  filename);
   }
   fclose(fp);
@@ -291,9 +307,11 @@ dynGroupBufferToSexp(SEXP call)
     error("error creating dyn group");
   }
 
-  if (!dguBufferToStruct(out_buf, out_length, dg)) {
+  /* DF_ABORT (3) is truthy: test against DF_OK, never with `!`. */
+  if (dguBufferToStruct(out_buf, out_length, dg) != DF_OK) {
     free(out_buf);
-    error("dg_fromString64: invalid arg");
+    dfuFreeDynGroup(dg);
+    error("dg_fromString64: not a valid dg buffer (corrupt, or written by a newer dlsh)");
   }
   
   free(out_buf);

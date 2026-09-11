@@ -22,6 +22,7 @@
 #ifndef _DF_H_
 #define _DF_H_
 
+#include <stddef.h>		/* size_t, for dfuDatatypeSize() */
 
 #define DF_ASCII  1
 #define DF_BINARY 2
@@ -719,6 +720,30 @@ typedef struct {
  *
  ***********************************************************************/
 
+/*
+ * BINARY COMPATIBILITY -- READ BEFORE CHANGING THIS STRUCT.
+ *
+ * New members go at the END, never in the middle.  dserv, stim2 and stim2's
+ * stimdlls are compiled separately from libdlsh and are NOT rebuilt when
+ * dlsh.zip is updated: they load libdlsh out of the zip at runtime and hold
+ * DYN_LIST pointers that libdlsh allocated.  Appending keeps every existing
+ * member at the same offset, so those already-built binaries keep reading the
+ * right bytes and a new dlsh.zip can simply be dropped in.  Inserting or
+ * reordering a member silently shifts `vals` and friends under them, which
+ * corrupts memory rather than failing loudly.
+ *
+ * That guarantee also relies on nothing outside libdlsh allocating a
+ * DYN_LIST: no sizeof(DYN_LIST) allocations, no by-value declarations, no
+ * arrays, and never embedded by value in another struct.  Everyone else uses
+ * DYN_LIST * and creates lists through dfuCreateDynList & co.  Keep it that
+ * way; a stack-allocated DYN_LIST in a separately built consumer would be the
+ * old, smaller size and libdlsh would write refhandle past its end.
+ *
+ * (dgread vendors its own copy of lablib, but never exchanges DYN_LIST
+ * pointers with libdlsh -- it talks to dlsh over serialized strings -- so the
+ * two copies are independent and it is unaffected by changes here.)
+ */
+
 #define DYN_LIST_NAME_SIZE 64
 typedef struct {
   char name[DYN_LIST_NAME_SIZE];/* buffer to hold name of list*/
@@ -728,9 +753,21 @@ typedef struct {
   int n;			/* number of slots filled     */
   int flags;			/* info about the dynlist     */
   void *vals;			/* pointer to actual data     */
+  void *refhandle;		/* opaque refcount handle, or NULL.
+				 * Owned by the Tcl layer (dlref.c); lablib
+				 * only ever passes it to the free hook below.
+				 * Every DYN_LIST is calloc'd, so an untracked
+				 * list reliably starts NULL.
+				 * KEEP LAST -- see the note above. */
 } DYN_LIST;
 
 #define DYN_LIST_NAME(d)      ((d)->name)
+#define DYN_LIST_REFHANDLE(d) ((d)->refhandle)
+
+/* Installed by the Tcl layer so that a list carrying a refcount handle can
+ * detach it however it is freed -- there are ~500 dfuFreeDynList call sites
+ * and only this one hook.  Left NULL when lablib is used without Tcl. */
+extern void (*dfuDynListFreeHook)(DYN_LIST *dl);
 #define DYN_LIST_DATATYPE(d)  ((d)->datatype)
 #define DYN_LIST_INCREMENT(d) ((d)->increment)
 #define DYN_LIST_MAX(d)       ((d)->max)
@@ -896,6 +933,14 @@ void dfuSetEmWindow(EM_DATA *emdata, int v0, int v1, int v2, int v3);
 
 void dfuSetSpChSource(SP_DATA *spdata, int channel, char source);
 void dfuSetSpChCellnum(SP_DATA *spdata, int channel, int cellnum);
+
+/* Element size in bytes for a DYN_LIST datatype (DF_LONG -> 4, DF_STRING ->
+ * sizeof(char *), DF_LIST -> sizeof(DYN_LIST *), ...), or 0 for anything
+ * that is not a list element type.  This is the one place that knows the
+ * storage width of each type; everything that allocates, copies or grows
+ * list storage should go through it rather than spelling sizeof(int) inline.
+ * A datatype is valid as a list element type exactly when this is nonzero. */
+size_t dfuDatatypeSize(int datatype);
 
 DYN_LIST *dfuCreateDynList(int type, int increment);
 DYN_GROUP *dfuCreateDynGroup(int nlists);
