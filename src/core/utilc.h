@@ -8,6 +8,7 @@
 #ifndef __UTILC_H__
 #define __UTILC_H__
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +62,9 @@ extern int   fliplong(int);
 void fliplongs(int n, int *vals);
 void flipshorts(int n, short *vals);
 void flipfloats(int n, float *vals);
+extern int64_t flipint64(int64_t);	/* int64_t: must match flipfuncs.h */
+void flipint64s(int n, int64_t *vals);
+void flipdoubles(int n, double *vals);
 
 extern float canonicalize_angle(float);
 

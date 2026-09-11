@@ -2897,6 +2897,8 @@ size_t dfuDatatypeSize(int datatype)
   case DF_CHAR:   return sizeof(char);
   case DF_STRING: return sizeof(char *);
   case DF_LIST:   return sizeof(DYN_LIST *);
+  case DF_INT64:  return sizeof(int64_t);
+  case DF_DOUBLE: return sizeof(double);
   default:        return 0;
   }
 }
@@ -3390,6 +3392,8 @@ DFU_DEFINE_SCALAR_OPS(Long,  int)
 DFU_DEFINE_SCALAR_OPS(Short, short)
 DFU_DEFINE_SCALAR_OPS(Float, float)
 DFU_DEFINE_SCALAR_OPS(Char,  unsigned char)
+DFU_DEFINE_SCALAR_OPS(Int64, int64_t)
+DFU_DEFINE_SCALAR_OPS(Double, double)
 
 #undef DFU_DEFINE_SCALAR_OPS
 

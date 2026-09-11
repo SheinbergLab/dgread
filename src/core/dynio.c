@@ -82,7 +82,9 @@ TAG_INFO DLTags[] = {
   { DL_FLOAT_DATA_TAG,  "FLOAT_DATA",  DF_FLOAT_ARRAY,  DG_TOP_LEVEL },
   { DL_LIST_DATA_TAG,   "LIST_DATA",   DF_LIST_ARRAY,   DG_TOP_LEVEL },
   { DL_SUBLIST_TAG,     "SUBLIST",     DF_STRUCTURE,    DYN_LIST_STRUCT },
-  { DL_FLAGS_TAG,       "FLAGS",       DF_LONG,         DG_TOP_LEVEL }
+  { DL_FLAGS_TAG,       "FLAGS",       DF_LONG,         DG_TOP_LEVEL },
+  { DL_INT64_DATA_TAG,  "INT64_DATA",  DF_INT64_ARRAY,  DG_TOP_LEVEL },
+  { DL_DOUBLE_DATA_TAG, "DOUBLE_DATA", DF_DOUBLE_ARRAY, DG_TOP_LEVEL }
 };
 
 TAG_INFO *DGTagTable[] = { DGTopLevelTags, DGTags, DLTags };
@@ -423,6 +425,12 @@ void dgRecordVoidArray(unsigned char type, int datatype, int n, void *data)
   case DF_FLOAT:
     dgRecordFloatArray(DL_FLOAT_DATA_TAG, n, (float *) data);
     break;
+  case DF_INT64:
+    dgRecordInt64Array(DL_INT64_DATA_TAG, n, (int64_t *) data);
+    break;
+  case DF_DOUBLE:
+    dgRecordDoubleArray(DL_DOUBLE_DATA_TAG, n, (double *) data);
+    break;
   case DF_STRING:
     dgRecordStringArray(DL_STRING_DATA_TAG, n, (char **) data);
     break;
@@ -486,6 +494,18 @@ void dgRecordFloatArray(unsigned char type, int n, float *a)
 {
   send_event(type, (unsigned char *) &n);
   send_bytes(n*sizeof(float), (unsigned char *) a);
+}
+
+void dgRecordInt64Array(unsigned char type, int n, int64_t *a)
+{
+  send_event(type, (unsigned char *) &n);
+  send_bytes(n*sizeof(int64_t), (unsigned char *) a);
+}
+
+void dgRecordDoubleArray(unsigned char type, int n, double *a)
+{
+  send_event(type, (unsigned char *) &n);
+  send_bytes(n*sizeof(double), (unsigned char *) a);
 }
 
 void dgRecordListArray(unsigned char type, int n)
@@ -622,6 +642,8 @@ static void send_event(unsigned char type, unsigned char *data)
   case DF_FLOAT_ARRAY:
   case DF_CHAR_ARRAY:
   case DF_LIST_ARRAY:
+  case DF_INT64_ARRAY:
+  case DF_DOUBLE_ARRAY:
   case DF_LONG:
     push(data, sizeof(int), 1);
     break;
@@ -634,6 +656,10 @@ static void send_event(unsigned char type, unsigned char *data)
   case DF_VERSION:
   case DF_FLOAT:
     push(data, sizeof(float), 1);
+    break;
+  case DF_INT64:
+  case DF_DOUBLE:
+    push(data, 8, 1);
     break;
   default:
     fprintf(stderr,"Unrecognized event type: %d\n", type);
@@ -1006,10 +1032,70 @@ void read_floats(char type, FILE *InFP, FILE *OutFP)
     
     if (dgFlipEvents) flipfloats(nfloats, vals);
   }
-  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), nfloats); 
-  
+  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), nfloats);
+
   for (i = 0; i < nfloats; i++) {
     fprintf(OutFP, "%d\t%6.2f\n", i+1, vals[i]);
+  }
+  if (vals) free(vals);
+}
+
+static
+void read_int64s(char type, FILE *InFP, FILE *OutFP)
+{
+  int n, i;
+  int64_t *vals = NULL;
+
+  if (fread(&n, sizeof(int), 1, InFP) != 1) {
+    fprintf(stderr,"Error reading number of int64s\n");
+    return;
+  }
+  if (dgFlipEvents) n = fliplong(n);
+  if (n) {
+    if (!(vals = (int64_t *) calloc(n, sizeof(int64_t)))) {
+      fprintf(stderr,"Error allocating memory for int64 array\n");
+      return;
+    }
+    if (fread(vals, sizeof(int64_t), n, InFP) != (size_t) n) {
+      fprintf(stderr,"Error reading int64 array\n");
+      free(vals);
+      return;
+    }
+    if (dgFlipEvents) flipint64s(n, vals);
+  }
+  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), n);
+  for (i = 0; i < n; i++) {
+    fprintf(OutFP, "%d\t%lld\n", i+1, (long long) vals[i]);
+  }
+  if (vals) free(vals);
+}
+
+static
+void read_doubles(char type, FILE *InFP, FILE *OutFP)
+{
+  int n, i;
+  double *vals = NULL;
+
+  if (fread(&n, sizeof(int), 1, InFP) != 1) {
+    fprintf(stderr,"Error reading number of doubles\n");
+    return;
+  }
+  if (dgFlipEvents) n = fliplong(n);
+  if (n) {
+    if (!(vals = (double *) calloc(n, sizeof(double)))) {
+      fprintf(stderr,"Error allocating memory for double array\n");
+      return;
+    }
+    if (fread(vals, sizeof(double), n, InFP) != (size_t) n) {
+      fprintf(stderr,"Error reading double array\n");
+      free(vals);
+      return;
+    }
+    if (dgFlipEvents) flipdoubles(n, vals);
+  }
+  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), n);
+  for (i = 0; i < n; i++) {
+    fprintf(OutFP, "%d\t%.15g\n", i+1, vals[i]);
   }
   if (vals) free(vals);
 }
@@ -1267,13 +1353,63 @@ int vread_floats(char type, int *n, FILE *OutFP)
     if (dgFlipEvents) flipfloats(nvals, vals);
   }
   fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), nvals);
-  
+
   for (i = 0; i < nvals; i++) {
     fprintf(OutFP, "%d\t%6.2f\n", i+1, vals[i]);
   }
-  
+
   if (vals) free(vals);
   return(sizeof(int)+nvals*sizeof(float));
+}
+
+static
+int vread_int64s(char type, int *n, FILE *OutFP)
+{
+  int i, nvals;
+  int64_t *vals = NULL;
+
+  memcpy(&nvals, n, sizeof(int));
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (nvals) {
+    if (!(vals = (int64_t *) calloc(nvals, sizeof(int64_t)))) {
+      fprintf(stderr,"dgutils: error allocating space for int64 array\n");
+      return(sizeof(int)+nvals*sizeof(int64_t));
+    }
+    memcpy(vals, n+1, sizeof(int64_t)*nvals);
+    if (dgFlipEvents) flipint64s(nvals, vals);
+  }
+  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), nvals);
+  for (i = 0; i < nvals; i++) {
+    fprintf(OutFP, "%d\t%lld\n", i+1, (long long) vals[i]);
+  }
+  if (vals) free(vals);
+  return(sizeof(int)+nvals*sizeof(int64_t));
+}
+
+static
+int vread_doubles(char type, int *n, FILE *OutFP)
+{
+  int i, nvals;
+  double *vals = NULL;
+
+  memcpy(&nvals, n, sizeof(int));
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (nvals) {
+    if (!(vals = (double *) calloc(nvals, sizeof(double)))) {
+      fprintf(stderr,"dgutils: error allocating space for double array\n");
+      return(sizeof(int)+nvals*sizeof(double));
+    }
+    memcpy(vals, n+1, sizeof(double)*nvals);
+    if (dgFlipEvents) flipdoubles(nvals, vals);
+  }
+  fprintf(OutFP, "%-20s\t%d\n", dgGetTagName(type), nvals);
+  for (i = 0; i < nvals; i++) {
+    fprintf(OutFP, "%d\t%.15g\n", i+1, vals[i]);
+  }
+  if (vals) free(vals);
+  return(sizeof(int)+nvals*sizeof(double));
 }
 
 /*--------------------------------------------------------------------
@@ -1846,6 +1982,76 @@ void get_floats(FILE *InFP, int *n, float **v)
   }
 }
 
+static
+void get_int64s(FILE *InFP, int *n, int64_t **v)
+{
+  int nvals;
+
+  *n = 0;
+  *v = NULL;
+  if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
+    fprintf(stderr,"Error reading number of int64s\n");
+    dgReadError = 1;
+    return;
+  }
+
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(int64_t))) {
+    fprintf(stderr,"Corrupt int64 count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    int64_t *vals = (int64_t *) calloc(nvals, sizeof(int64_t));
+    if (!vals || fread(vals, sizeof(int64_t), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading int64 elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    if (dgFlipEvents) flipint64s(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
+}
+
+static
+void get_doubles(FILE *InFP, int *n, double **v)
+{
+  int nvals;
+
+  *n = 0;
+  *v = NULL;
+  if (fread(&nvals, sizeof(int), 1, InFP) != 1) {
+    fprintf(stderr,"Error reading number of doubles\n");
+    dgReadError = 1;
+    return;
+  }
+
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (!file_count_ok(InFP, nvals, sizeof(double))) {
+    fprintf(stderr,"Corrupt double count %d, aborting\n", nvals);
+    dgReadError = 1;
+    return;
+  }
+
+  if (nvals) {
+    double *vals = (double *) calloc(nvals, sizeof(double));
+    if (!vals || fread(vals, sizeof(double), nvals, InFP) != (size_t) nvals) {
+      fprintf(stderr,"Error reading double elements\n");
+      free(vals);
+      dgReadError = 1;
+      return;
+    }
+    if (dgFlipEvents) flipdoubles(nvals, vals);
+    *n = nvals;
+    *v = vals;
+  }
+}
+
 /*--------------------------------------------------------------------
   -----                  Buffer Get Functions                    -----
   -------------------------------------------------------------------*/
@@ -2076,6 +2282,58 @@ int vget_floats(int *n, int *nv, float **v)
   return(sizeof(int)+nvals*sizeof(float));
 }
 
+static
+int vget_int64s(int *n, int *nv, int64_t **v)
+{
+  int nvals;
+  int64_t *vals = NULL;
+
+  memcpy(&nvals, n, sizeof(int));
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (nvals) {
+    if (!(vals = (int64_t *) calloc(nvals, sizeof(int64_t)))) {
+      fprintf(stderr,"dgutils: error allocating space for int64 array\n");
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
+    }
+    memcpy(vals, n+1, sizeof(int64_t)*nvals);
+    if (dgFlipEvents) flipint64s(nvals, vals);
+  }
+
+  *nv = nvals;
+  *v  = vals;
+
+  return(sizeof(int)+nvals*sizeof(int64_t));
+}
+
+static
+int vget_doubles(int *n, int *nv, double **v)
+{
+  int nvals;
+  double *vals = NULL;
+
+  memcpy(&nvals, n, sizeof(int));
+  if (dgFlipEvents) nvals = fliplong(nvals);
+
+  if (nvals) {
+    if (!(vals = (double *) calloc(nvals, sizeof(double)))) {
+      fprintf(stderr,"dgutils: error allocating space for double array\n");
+      dgReadError = 1;
+      *nv = 0; *v = NULL;
+      return(sizeof(int));
+    }
+    memcpy(vals, n+1, sizeof(double)*nvals);
+    if (dgFlipEvents) flipdoubles(nvals, vals);
+  }
+
+  *nv = nvals;
+  *v  = vals;
+
+  return(sizeof(int)+nvals*sizeof(double));
+}
+
 
 
 /*--------------------------------------------------------------------
@@ -2237,6 +2495,28 @@ int dguFileToDynList(FILE *InFP, DYN_LIST *dl)
 	DYN_LIST_MAX(dl) = n;
 	DYN_LIST_N(dl) = n;
 	DYN_LIST_VALS(dl) = data;
+      }
+      break;
+    case DL_INT64_DATA_TAG:
+      {
+	int64_t *data;
+	int n;
+	get_int64s(InFP, &n, &data);
+	DYN_LIST_DATATYPE(dl) = DF_INT64;
+	DYN_LIST_MAX(dl) = n;
+	DYN_LIST_N(dl) = n;
+	DYN_LIST_VALS(dl) = n ? data : NULL;
+      }
+      break;
+    case DL_DOUBLE_DATA_TAG:
+      {
+	double *data;
+	int n;
+	get_doubles(InFP, &n, &data);
+	DYN_LIST_DATATYPE(dl) = DF_DOUBLE;
+	DYN_LIST_MAX(dl) = n;
+	DYN_LIST_N(dl) = n;
+	DYN_LIST_VALS(dl) = n ? data : NULL;
       }
       break;
     case DL_CHAR_DATA_TAG:
@@ -2565,6 +2845,30 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
 	DYN_LIST_VALS(dl) = data;
       }
       break;
+    case DL_INT64_DATA_TAG:
+      {
+	int64_t *data;
+	int n;
+	if (!bd_array_fits(bdata, sizeof(int64_t))) { status = DF_ABORT; break; }
+	advance_bytes += vget_int64s((int *) BD_DATA(bdata), &n, &data);
+	DYN_LIST_DATATYPE(dl) = DF_INT64;
+	DYN_LIST_MAX(dl) = n;
+	DYN_LIST_N(dl) = n;
+	DYN_LIST_VALS(dl) = n ? data : NULL;
+      }
+      break;
+    case DL_DOUBLE_DATA_TAG:
+      {
+	double *data;
+	int n;
+	if (!bd_array_fits(bdata, sizeof(double))) { status = DF_ABORT; break; }
+	advance_bytes += vget_doubles((int *) BD_DATA(bdata), &n, &data);
+	DYN_LIST_DATATYPE(dl) = DF_DOUBLE;
+	DYN_LIST_MAX(dl) = n;
+	DYN_LIST_N(dl) = n;
+	DYN_LIST_VALS(dl) = n ? data : NULL;
+      }
+      break;
     case DL_CHAR_DATA_TAG:
       {
 	char *data;
@@ -2698,6 +3002,12 @@ void dguBufferToAscii(unsigned char *vbuf, int bufsize, FILE *OutFP)
     case DF_SHORT_ARRAY:
       advance_bytes = vread_shorts(c, (int *) &vbuf[i], OutFP);
       break;
+    case DF_INT64_ARRAY:
+      advance_bytes = vread_int64s(c, (int *) &vbuf[i], OutFP);
+      break;
+    case DF_DOUBLE_ARRAY:
+      advance_bytes = vread_doubles(c, (int *) &vbuf[i], OutFP);
+      break;
     case DF_LIST_ARRAY:
       advance_bytes = vread_long(c, (int *) &vbuf[i], OutFP);
       break;
@@ -2767,6 +3077,12 @@ void dguFileToAscii(FILE *InFP, FILE *OutFP)
       break;
     case DF_SHORT_ARRAY:
       read_shorts(c, InFP, OutFP);
+      break;
+    case DF_INT64_ARRAY:
+      read_int64s(c, InFP, OutFP);
+      break;
+    case DF_DOUBLE_ARRAY:
+      read_doubles(c, InFP, OutFP);
       break;
     case DF_LIST_ARRAY:
       read_long(c, InFP, OutFP);

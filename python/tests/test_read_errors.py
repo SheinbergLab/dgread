@@ -2,9 +2,10 @@
 crash the interpreter or come back half-parsed.
 
 tests/data/unknown_tag.dg is tests/data/two_lists.dg with the LONG_DATA tag
-of the first list (byte 46) rewritten to 11, a tag this build does not
-define.  Before the fix the core's DF_ABORT status (3) passed an `if (!...)`
-check as success and the half-built list segfaulted the converter.
+of the first list (byte 46) rewritten to 99, a tag no dg writer defines
+(11 and 12 became INT64_DATA and DOUBLE_DATA in 2026).  Before the fix the
+core's DF_ABORT status (3) passed an `if (!...)` check as success and the
+half-built list segfaulted the converter.
 """
 
 from pathlib import Path

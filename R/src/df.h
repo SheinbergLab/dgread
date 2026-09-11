@@ -23,6 +23,7 @@
 #define _DF_H_
 
 #include <stddef.h>		/* size_t, for dfuDatatypeSize() */
+#include <stdint.h>		/* int64_t, the DF_INT64 element type */
 
 #define DF_ASCII  1
 #define DF_BINARY 2
@@ -42,10 +43,13 @@ extern char dfMagicNumber[];	/* to uniquely identify this file type */
  */
 enum DATA_TYPE {
   DF_VERSION,                   /* used to figure out byte ordering    */
-  DF_FLAG, DF_CHAR, DF_LONG, DF_SHORT, DF_FLOAT, DF_STRUCTURE, 
+  DF_FLAG, DF_CHAR, DF_LONG, DF_SHORT, DF_FLOAT, DF_STRUCTURE,
   DF_STRING, DF_LONG_ARRAY, DF_SHORT_ARRAY, DF_FLOAT_ARRAY,
-  DF_STRING_ARRAY, DF_LIST, DF_VOID, DF_VOID_ARRAY, DF_CHAR_ARRAY, 
-  DF_LIST_ARRAY
+  DF_STRING_ARRAY, DF_LIST, DF_VOID, DF_VOID_ARRAY, DF_CHAR_ARRAY,
+  DF_LIST_ARRAY,
+  /* 8-byte element types, added 2026.  Appended so every value above keeps
+     its number (these are file opcodes).  DF_LONG is and stays 32-bit. */
+  DF_INT64, DF_DOUBLE, DF_INT64_ARRAY, DF_DOUBLE_ARRAY
 };
 
 typedef struct _tag_info {
@@ -972,6 +976,8 @@ void dfuAddDynListLong(DYN_LIST *, int);
 void dfuAddDynListShort(DYN_LIST *, short);
 void dfuAddDynListFloat(DYN_LIST *, float);
 void dfuAddDynListChar(DYN_LIST *, unsigned char);
+void dfuAddDynListInt64(DYN_LIST *, int64_t);
+void dfuAddDynListDouble(DYN_LIST *, double);
 void dfuAddDynListList(DYN_LIST *, DYN_LIST *);
 void dfuAddDynListString(DYN_LIST *dynlist, char *string);
 
@@ -981,6 +987,8 @@ void dfuPrependDynListLong(DYN_LIST *, int);
 void dfuPrependDynListShort(DYN_LIST *, short);
 void dfuPrependDynListFloat(DYN_LIST *, float);
 void dfuPrependDynListChar(DYN_LIST *, unsigned char);
+void dfuPrependDynListInt64(DYN_LIST *, int64_t);
+void dfuPrependDynListDouble(DYN_LIST *, double);
 void dfuPrependDynListList(DYN_LIST *, DYN_LIST *);
 void dfuPrependDynListString(DYN_LIST *dynlist, char *string);
 
@@ -988,6 +996,8 @@ int dfuInsertDynListLong(DYN_LIST *, int, int pos);
 int dfuInsertDynListShort(DYN_LIST *, short, int pos);
 int dfuInsertDynListFloat(DYN_LIST *, float, int pos);
 int dfuInsertDynListChar(DYN_LIST *, unsigned char, int pos);
+int dfuInsertDynListInt64(DYN_LIST *, int64_t, int pos);
+int dfuInsertDynListDouble(DYN_LIST *, double, int pos);
 int dfuInsertDynListList(DYN_LIST *, DYN_LIST *, int pos);
 int dfuInsertDynListString(DYN_LIST *dynlist, char *string, int pos);
 

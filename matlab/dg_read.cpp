@@ -135,6 +135,29 @@ private:
                 return arr;
             }
 
+        case DF_DOUBLE:
+            {
+                double *vals = reinterpret_cast<double *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = vals[i];
+                }
+                return arr;
+            }
+
+        case DF_INT64:
+            {
+                // Kept as double like every other numeric column (the
+                // documented contract); exact up to 2^53, which covers a
+                // microsecond epoch timestamp with room to spare.
+                int64_t *vals = reinterpret_cast<int64_t *>(DYN_LIST_VALS(dl));
+                TypedArray<double> arr = factory.createArray<double>({static_cast<size_t>(n), 1});
+                for (int i = 0; i < n; i++) {
+                    arr[i] = static_cast<double>(vals[i]);
+                }
+                return arr;
+            }
+
         case DF_STRING:
             {
                 const char **vals = reinterpret_cast<const char **>(DYN_LIST_VALS(dl));

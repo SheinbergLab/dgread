@@ -81,8 +81,29 @@ SEXP dynListToSexp(DYN_LIST *dl) /* Create a list from a group of dl's */
     {
       char *vals = (char *) DYN_LIST_VALS(dl);
       PROTECT(retval=allocVector(INTSXP, length));
-      for ( i = 0; i < DYN_LIST_N(dl); i++ ) 
+      for ( i = 0; i < DYN_LIST_N(dl); i++ )
 	INTEGER(retval)[i] = vals[i];
+      UNPROTECT(1);
+    }
+    break;
+  case DF_DOUBLE:
+    {
+      double *vals = (double *) DYN_LIST_VALS(dl);
+      PROTECT(retval=allocVector(REALSXP, length));
+      memcpy(REAL(retval), vals, length * sizeof(double));
+      UNPROTECT(1);
+    }
+    break;
+  case DF_INT64:
+    {
+      /* R has no 64-bit integer vector.  A double holds every integer up
+	 to 2^53 exactly (a microsecond epoch timestamp is ~2^51), so that is
+	 the honest mapping without a bit64 dependency; larger magnitudes
+	 lose low bits. */
+      int64_t *vals = (int64_t *) DYN_LIST_VALS(dl);
+      PROTECT(retval=allocVector(REALSXP, length));
+      for ( i = 0; i < DYN_LIST_N(dl); i++ )
+	REAL(retval)[i] = (double) vals[i];
       UNPROTECT(1);
     }
     break;

@@ -46,7 +46,11 @@ enum DG_TAG { DG_NAME_TAG, DG_NLISTS_TAG, DG_DYNLIST_TAG };
 enum DL_TAG { DL_NAME_TAG, DL_INCREMENT_TAG, DL_DATA_TAG,
 	    DL_STRING_DATA_TAG, DL_CHAR_DATA_TAG, DL_SHORT_DATA_TAG,
 	    DL_LONG_DATA_TAG, DL_FLOAT_DATA_TAG, DL_LIST_DATA_TAG,
-	    DL_SUBLIST_TAG, DL_FLAGS_TAG };
+	    DL_SUBLIST_TAG, DL_FLAGS_TAG,
+	    /* 8-byte element arrays, tags 11 and 12 (added 2026).  Readers
+	       older than that abort on them: see DL_INT64_DATA_TAG in the
+	       docs before writing one into a file others will open. */
+	    DL_INT64_DATA_TAG, DL_DOUBLE_DATA_TAG };
 
 /***********************************************************************
  *
@@ -84,6 +88,8 @@ void dgRecordVoidArray(unsigned char, int, int, void *);
 void dgRecordLongArray(unsigned char, int, int *);
 void dgRecordShortArray(unsigned char, int, short *);
 void dgRecordFloatArray(unsigned char, int, float *);
+void dgRecordInt64Array(unsigned char, int, int64_t *);
+void dgRecordDoubleArray(unsigned char, int, double *);
 void dgRecordCharArray(unsigned char, int, char *);
 void dgRecordListArray(unsigned char type, int n);
 

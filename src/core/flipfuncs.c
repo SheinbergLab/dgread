@@ -3,6 +3,8 @@
  * Routines for flipping bytes
  */
 
+#include "flipfuncs.h"		/* int64_t, and keeps the definitions honest */
+
 float
 flipfloat(float oldf)
 {
@@ -91,4 +93,29 @@ void flipfloats(int n, float *vals)
 {
   int i;
   for (i = 0; i < n; i++) vals[i] = flipfloat(vals[i]);
+}
+
+int64_t
+flipint64(int64_t oldv)
+{
+  int64_t newv;
+  char *old, *new;
+  int i;
+
+  old = (char *) &oldv;
+  new = (char *) &newv;
+  for (i = 0; i < 8; i++) new[i] = old[7-i];
+  return(newv);
+}
+
+void flipint64s(int n, int64_t *vals)
+{
+  int i;
+  for (i = 0; i < n; i++) vals[i] = flipint64(vals[i]);
+}
+
+void flipdoubles(int n, double *vals)
+{
+  int i;
+  for (i = 0; i < n; i++) vals[i] = flipdouble(vals[i]);
 }

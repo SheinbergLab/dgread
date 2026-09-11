@@ -99,6 +99,26 @@ dynListToPyObject(DYN_LIST *dl) /* Create a list from a group of dl's */
       return PyArray_Return(vector);
     }
     break;
+  case DF_INT64:
+    {
+      int64_t *vals = (int64_t *) DYN_LIST_VALS(dl);
+      PyArrayObject *vector;
+      dims[0] = DYN_LIST_N(dl);
+      vector = (PyArrayObject *) PyArray_SimpleNew(1, dims, NPY_INT64);
+      memcpy(vector->data, vals, dims[0]*sizeof(int64_t));
+      return PyArray_Return(vector);
+    }
+    break;
+  case DF_DOUBLE:
+    {
+      double *vals = (double *) DYN_LIST_VALS(dl);
+      PyArrayObject *vector;
+      dims[0] = DYN_LIST_N(dl);
+      vector = (PyArrayObject *) PyArray_SimpleNew(1, dims, NPY_FLOAT64);
+      memcpy(vector->data, vals, dims[0]*sizeof(double));
+      return PyArray_Return(vector);
+    }
+    break;
   case DF_STRING:
     {
       char **vals = (char **) DYN_LIST_VALS(dl);
