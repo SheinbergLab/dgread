@@ -81,11 +81,11 @@ To build manually:
 ```bash
 cd R
 R CMD build .
-R CMD INSTALL dgread_1.1.1.tar.gz
+R CMD INSTALL dgread_1.1.2.tar.gz
 ```
 
 To check:
 
 ```bash
-R CMD check dgread_1.1.1.tar.gz
+R CMD check dgread_1.1.2.tar.gz
 ```

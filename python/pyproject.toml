@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dgread"
-version = "1.2.1"
+version = "1.2.2"
 description = "Python reader for dg/dgz dynamic group data files"
 readme = "README.md"
 license = {text = "MIT"}
