@@ -36,13 +36,17 @@ dependencies = [
 [project.optional-dependencies]
 pandas = ["pandas>=1.0"]
 awkward = ["awkward>=2.0"]
+arrow = ["pyarrow>=12.0"]
 dev = [
     "build",
     "twine",
     "pytest",
     "cibuildwheel",
 ]
-all = ["dgread[pandas,awkward,dev]"]
+all = ["dgread[pandas,awkward,arrow,dev]"]
+
+[project.scripts]
+dg2parquet = "dgread.cli:dg2parquet"
 
 [project.urls]
 Homepage = "https://github.com/SheinbergLab/dgread"

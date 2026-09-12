@@ -114,6 +114,33 @@ events = dgread.to_pandas('cells.dgz', n_rows=97)  # 97 rows, warns
 Helpers: `dgread.row_count(data)`, `dgread.nested_columns(data)`,
 `dgread.scalar_columns(data)`, `dgread.is_nested(column)`.
 
+### Arrow and Parquet: handing data to tools that have never heard of dg
+
+```bash
+pip install "dgread[arrow]"
+```
+
+```python
+table = dgread.to_arrow('session.dgz')          # pyarrow.Table
+dgread.to_parquet('session.dgz', 'session.parquet')
+```
+
+Element types are kept (long → int32, float → float32, int64 and double as
+themselves, strings, ragged columns as `list<...>`), and the row-count
+selection is the same as for `to_pandas`. Parquet is the format everything
+opens without dgread: pandas, polars, DuckDB, R's `arrow`, Spark. From the
+command line:
+
+```bash
+dg2parquet session.dgz                     # writes session.parquet
+dg2parquet session.dgz --n-rows 97         # the other table in a mixed file
+dg2parquet a.dgz b.dgz -o sessions.parquet # concatenated, in order
+```
+
+The Tcl side has the same idea in `dg_toArrowFile`, which writes an Arrow
+IPC file (`.arrow`, what `pandas.read_feather`, `arrow::read_feather` and
+DuckDB open directly) for a rectangular group.
+
 ### Compatibility
 
 `dgread_utils` (`load_session`, `to_dataframe`, `print_summary`, ...)

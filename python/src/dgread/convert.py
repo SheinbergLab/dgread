@@ -34,6 +34,8 @@ __all__ = [
     "read",
     "to_pandas",
     "to_awkward",
+    "to_arrow",
+    "to_parquet",
     "row_count",
     "is_nested",
     "nested_columns",
@@ -308,3 +310,130 @@ def to_awkward(
     if len(arrays) == 1:
         return arrays[0]
     return ak.concatenate(arrays)
+
+
+# --------------------------------------------------------------------------
+# arrow / parquet
+# --------------------------------------------------------------------------
+
+def _pyarrow():
+    try:
+        import pyarrow as pa
+    except ImportError as e:  # pragma: no cover - exercised only without pyarrow
+        raise ImportError(
+            "pyarrow is required for to_arrow()/to_parquet(); "
+            "install with: pip install dgread[arrow]"
+        ) from e
+    return pa
+
+
+def _arrow_column(col: Any, pa):
+    """Build a pyarrow array for one column.
+
+    A ragged column of 1-D ndarrays becomes ``list<element dtype>`` from one
+    concatenation and an offsets array, keeping int32/float32 as they are.
+    Deeper nesting and mixed rows go through pyarrow's own inference, which
+    handles lists of lists of arrays (``list<list<...>>``).
+    """
+    if isinstance(col, np.ndarray) and col.dtype != object:
+        return pa.array(col)
+
+    if not is_nested(col):
+        return pa.array(list(col))  # strings, or a plain python list
+
+    if all(isinstance(row, np.ndarray) and row.ndim == 1 for row in col):
+        counts = np.fromiter((len(row) for row in col), dtype=np.int64, count=len(col))
+        offsets = np.zeros(len(col) + 1, dtype=np.int32)
+        np.cumsum(counts, out=offsets[1:])
+        if counts.sum() == 0:
+            content = np.empty(0, dtype=col[0].dtype)
+        else:
+            content = np.concatenate(col)
+        return pa.ListArray.from_arrays(pa.array(offsets), pa.array(content))
+
+    return pa.array([_arrow_row(row) for row in col])
+
+
+def _arrow_row(row: Any):
+    """pyarrow infers types from python lists, not from nested ndarrays."""
+    if isinstance(row, np.ndarray):
+        return row.tolist()
+    if isinstance(row, list):
+        return [_arrow_row(r) for r in row]
+    return row
+
+
+def to_arrow(
+    source: Union[Source, Sequence[Source]],
+    *,
+    columns: Optional[Iterable[str]] = None,
+    n_rows: Optional[int] = None,
+    nested: str = "keep",
+):
+    """Convert dg data to a pyarrow Table, one row per trial.
+
+    Element types are kept: long -> int32, float -> float32, int64 and
+    double as themselves, strings as ``string``, ragged columns as
+    ``list<...>``. The table is what the rest of the Arrow ecosystem wants
+    as input: ``pyarrow.parquet.write_table``, ``pyarrow.feather``,
+    ``polars.from_arrow``, ``duckdb.from_arrow``.
+
+    Parameters
+    ----------
+    source, columns, n_rows, nested
+        As for :func:`to_pandas`. A list of sources is concatenated with
+        ``pyarrow.concat_tables``.
+
+    Returns
+    -------
+    pyarrow.Table
+    """
+    pa = _pyarrow()
+    tables = []
+    for data in _sources(source):
+        kept = _select(data, columns, n_rows, nested)
+        arrays = {name: _arrow_column(col, pa) for name, col in kept.items()}
+        tables.append(pa.table(arrays))
+    if len(tables) == 1:
+        return tables[0]
+    return pa.concat_tables(tables, promote_options="default")
+
+
+def to_parquet(
+    source: Union[Source, Sequence[Source]],
+    path: PathLike,
+    *,
+    columns: Optional[Iterable[str]] = None,
+    n_rows: Optional[int] = None,
+    nested: str = "keep",
+    **write_kwargs: Any,
+):
+    """Write dg data to a Parquet file, one row per trial.
+
+    Parquet is the format every analysis tool opens without any dg-specific
+    code (pandas, polars, DuckDB, R's arrow, Spark), so this is the way to
+    hand a session to someone who does not have dgread. Nested columns are
+    stored as Parquet lists; nothing is flattened or dropped beyond the
+    row-count selection described for :func:`to_pandas`.
+
+    Parameters
+    ----------
+    source, columns, n_rows, nested
+        As for :func:`to_pandas`.
+    path
+        Output file. Created or overwritten.
+    **write_kwargs
+        Passed to ``pyarrow.parquet.write_table`` (``compression=``,
+        ``row_group_size=``, ...). The default compression is snappy.
+
+    Returns
+    -------
+    pyarrow.Table
+        The table that was written.
+    """
+    _pyarrow()
+    import pyarrow.parquet as pq
+
+    table = to_arrow(source, columns=columns, n_rows=n_rows, nested=nested)
+    pq.write_table(table, str(path), **write_kwargs)
+    return table
