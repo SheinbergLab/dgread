@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 project(dg 
-    VERSION 1.1.2
+    VERSION 1.1.3
     DESCRIPTION "dg/dgz dynamic group I/O library"
     LANGUAGES C
 )

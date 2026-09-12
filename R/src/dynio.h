@@ -52,6 +52,41 @@ enum DL_TAG { DL_NAME_TAG, DL_INCREMENT_TAG, DL_DATA_TAG,
 	       docs before writing one into a file others will open. */
 	    DL_INT64_DATA_TAG, DL_DOUBLE_DATA_TAG };
 
+/*
+ * Skippable extension envelope (added 2026, after the int64/double tags).
+ *
+ * Every tag above is a bare opcode: a reader that doesn't know one has no
+ * way to find the next record, so it aborts the whole file.  That is why
+ * adding tags 11 and 12 needed every reader in the field updated first.
+ * DG_EXT_TAG is one tag value, valid at EVERY level (top, group, list),
+ * whose record carries its own length:
+ *
+ *     byte   DG_EXT_TAG
+ *     int32  ext_id      which extension (0 is reserved, never written)
+ *     int32  length      payload bytes
+ *     bytes  payload
+ *
+ * Both ints are in the file's byte order, like every other int.  A reader
+ * that doesn't recognise ext_id skips the payload and carries on, so
+ * anything new that is carried inside an envelope degrades to "ignored"
+ * on readers from this version on, instead of "file unreadable".  Readers
+ * older than this still abort on it, exactly as they do on 11 and 12.
+ *
+ * The value sits far above the per-level tag tables and below END_STRUCT
+ * (255); it is never used as a table index.  Writers emit one with
+ * dgRecordExtension() between records; readers see them through the
+ * optional handler set by dgSetExtensionHandler().
+ */
+#define DG_EXT_TAG 250
+
+enum DG_EXT_SCOPE { DG_EXT_SCOPE_TOP, DG_EXT_SCOPE_GROUP, DG_EXT_SCOPE_LIST };
+
+/* scope says where the envelope sat; owner is the DYN_GROUP * being read
+   for TOP and GROUP scope, the DYN_LIST * for LIST scope.  The payload
+   pointer is only valid during the call. */
+typedef int (*DG_EXT_HANDLER)(int scope, void *owner, int ext_id,
+			      const unsigned char *payload, int length);
+
 /***********************************************************************
  *
  *                      DG_FILE_IO Function Prototypes
@@ -92,6 +127,12 @@ void dgRecordInt64Array(unsigned char, int, int64_t *);
 void dgRecordDoubleArray(unsigned char, int, double *);
 void dgRecordCharArray(unsigned char, int, char *);
 void dgRecordListArray(unsigned char type, int n);
+
+/* Extension envelope: write one into the current buffer position (legal
+   anywhere a tag is), and install/replace the reader-side handler (returns
+   the previous one; NULL means skip silently, the default). */
+void dgRecordExtension(int ext_id, int length, const void *payload);
+DG_EXT_HANDLER dgSetExtensionHandler(DG_EXT_HANDLER handler);
 
 void dgBeginStruct(unsigned char tag);
 void dgEndStruct(void);

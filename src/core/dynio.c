@@ -50,6 +50,11 @@ static void push(unsigned char *data, int, int);
 static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg);
 static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl);
 
+/* used by the extension-envelope helpers, which sit above their definitions */
+static void get_long(FILE *InFP, int *ival);
+static int vget_long(int *ival, int *l);
+static int dgReadError;
+
 int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg);
 
 /***********************************************************************/
@@ -520,6 +525,31 @@ void dgRecordListArray(unsigned char type, int n)
 void dgRecordMagicNumber(void)
 {
   send_bytes(DG_MAGIC_NUMBER_SIZE, (unsigned char *) dgMagicNumber);
+}
+
+/*********************************************************************/
+/*                     Extension Envelope (DG_EXT_TAG)                */
+/*********************************************************************/
+
+static DG_EXT_HANDLER dgExtHandler = NULL;
+
+DG_EXT_HANDLER dgSetExtensionHandler(DG_EXT_HANDLER handler)
+{
+  DG_EXT_HANDLER old = dgExtHandler;
+  dgExtHandler = handler;
+  return old;
+}
+
+/* Bypasses send_event on purpose: DG_EXT_TAG is not in any tag table, and
+   the record's own length is what lets an unknowing reader step over it. */
+void dgRecordExtension(int ext_id, int length, const void *payload)
+{
+  unsigned char tag = DG_EXT_TAG;
+  if (length < 0 || (length && !payload)) return;
+  push(&tag, 1, 1);
+  push((unsigned char *) &ext_id, sizeof(int), 1);
+  push((unsigned char *) &length, sizeof(int), 1);
+  if (length) push((unsigned char *) payload, 1, length);
 }
 
 void dgRecordFlag(unsigned char type)
@@ -1112,6 +1142,41 @@ void read_doubles(char type, FILE *InFP, FILE *OutFP)
   -----                                                          -----
   -------------------------------------------------------------------*/
 
+/* Extension envelope in the ASCII dumps: report it and step over it. */
+static void read_extension(FILE *InFP, FILE *OutFP)
+{
+  int ext_id, length;
+  unsigned char skip[4096];
+  get_long(InFP, &ext_id);
+  get_long(InFP, &length);
+  if (dgReadError || length < 0) {
+    fprintf(stderr, "dg: corrupt extension record\n");
+    return;
+  }
+  fprintf(OutFP, "%-20s\tid %d, %d bytes\n", "EXTENSION", ext_id, length);
+  while (length > 0) {
+    size_t want = length < (int) sizeof(skip) ? (size_t) length : sizeof(skip);
+    size_t got = fread(skip, 1, want, InFP);
+    if (!got) { dgReadError = 1; return; }
+    length -= (int) got;
+  }
+}
+
+static int vread_extension(unsigned char *p, int remaining, FILE *OutFP)
+{
+  int ext_id, length;
+  const int hdr = 2 * (int) sizeof(int);
+  if (remaining < hdr) return -1;
+  vget_long((int *) p, &ext_id);
+  vget_long((int *) (p + sizeof(int)), &length);
+  if (length < 0 || length > remaining - hdr) {
+    fprintf(stderr, "dg: corrupt extension length %d\n", length);
+    return -1;
+  }
+  fprintf(OutFP, "%-20s\tid %d, %d bytes\n", "EXTENSION", ext_id, length);
+  return hdr + length;
+}
+
 static 
 int vread_version(float *version, FILE *OutFP)
 {
@@ -1676,6 +1741,39 @@ static int file_count_ok(FILE *fp, int count, size_t elemsize)
   if (rem < 0) return 1;
   if ((long) count * (long) elemsize > rem) return 0;
   return 1;
+}
+
+/*
+ * An extension envelope in a file: [int ext_id][int length][payload].
+ * Hands the payload to the installed handler, if any, and otherwise just
+ * steps over it.  The payload is read (not fseek'd) so this works on a
+ * non-seekable stream too; file_count_ok already tolerates those.
+ */
+static int get_extension(FILE *InFP, int scope, void *owner)
+{
+  int ext_id, length;
+  unsigned char *payload = NULL;
+
+  get_long(InFP, &ext_id);
+  get_long(InFP, &length);
+  if (dgReadError) return DF_ABORT;
+  if (!file_count_ok(InFP, length, 1)) {
+    fprintf(stderr, "dg: corrupt extension length %d, aborting\n", length);
+    dgReadError = 1;
+    return DF_ABORT;
+  }
+  if (length) {
+    payload = (unsigned char *) malloc(length);
+    if (!payload || fread(payload, 1, length, InFP) != (size_t) length) {
+      fprintf(stderr, "dg: truncated extension %d, aborting\n", ext_id);
+      free(payload);
+      dgReadError = 1;
+      return DF_ABORT;
+    }
+  }
+  if (dgExtHandler) dgExtHandler(scope, owner, ext_id, payload, length);
+  free(payload);
+  return DF_OK;
 }
 
 static
@@ -2363,6 +2461,9 @@ int dguFileToStruct(FILE *InFP, DYN_GROUP *dg)
     case DG_BEGIN_TAG:
       status = dguFileToDynGroup(InFP, dg);
       break;
+    case DG_EXT_TAG:
+      status = get_extension(InFP, DG_EXT_SCOPE_TOP, dg);
+      break;
     default:
       fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
@@ -2410,6 +2511,9 @@ int dguFileToDynGroup(FILE *InFP, DYN_GROUP *dg)
 	dfuAddDynGroupExistingList(dg, DYN_LIST_NAME(dl), dl);
 	n++;
       }
+      break;
+    case DG_EXT_TAG:
+      status = get_extension(InFP, DG_EXT_SCOPE_GROUP, dg);
       break;
     default:
       fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
@@ -2575,6 +2679,9 @@ int dguFileToDynList(FILE *InFP, DYN_LIST *dl)
 	if (status == DF_ABORT) break;
       }
       break;
+    case DG_EXT_TAG:
+      status = get_extension(InFP, DG_EXT_SCOPE_LIST, dl);
+      break;
     default:
       fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
@@ -2651,6 +2758,27 @@ static int bd_string_array_fits(BUF_DATA *bdata)
   return 1;
 }
 
+/*
+ * An extension envelope in a buffer.  Returns the bytes to advance past
+ * (header + payload), or -1 if the record does not fit in what remains.
+ */
+static int bd_get_extension(BUF_DATA *bdata, int scope, void *owner)
+{
+  int ext_id, length;
+  const long hdr = 2 * (long) sizeof(int);
+
+  if (!bd_have(bdata, hdr)) return -1;
+  vget_long((int *) BD_DATA(bdata), &ext_id);
+  vget_long((int *) (BD_DATA(bdata) + sizeof(int)), &length);
+  if (length < 0 || !bd_have(bdata, hdr + length)) {
+    fprintf(stderr, "dg: corrupt extension length %d, aborting\n", length);
+    return -1;
+  }
+  if (dgExtHandler)
+    dgExtHandler(scope, owner, ext_id, BD_DATA(bdata) + hdr, length);
+  return (int) (hdr + length);
+}
+
 int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
 {
   int c, status = DF_OK;
@@ -2687,6 +2815,13 @@ int dguBufferToStruct(unsigned char *vbuf, int bufsize, DYN_GROUP *dg)
       break;
     case DG_BEGIN_TAG:
       status = dguBufferToDynGroup(bdata, dg);
+      break;
+    case DG_EXT_TAG:
+      {
+	int nb = bd_get_extension(bdata, DG_EXT_SCOPE_TOP, dg);
+	if (nb < 0) { status = DF_ABORT; break; }
+	advance_bytes += nb;
+      }
       break;
     default:
       fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
@@ -2740,6 +2875,13 @@ static int dguBufferToDynGroup(BUF_DATA *bdata, DYN_GROUP *dg)
 	}
 	dfuAddDynGroupExistingList(dg, DYN_LIST_NAME(dl), dl);
 	n++;
+      }
+      break;
+    case DG_EXT_TAG:
+      {
+	int nb = bd_get_extension(bdata, DG_EXT_SCOPE_GROUP, dg);
+	if (nb < 0) { status = DF_ABORT; break; }
+	advance_bytes += nb;
       }
       break;
     default:
@@ -2923,6 +3065,13 @@ static int dguBufferToDynList(BUF_DATA *bdata, DYN_LIST *dl)
 	if (status == DF_ABORT) break;
       }
       break;
+    case DG_EXT_TAG:
+      {
+	int nb = bd_get_extension(bdata, DG_EXT_SCOPE_LIST, dl);
+	if (nb < 0) { status = DF_ABORT; break; }
+	advance_bytes += nb;
+      }
+      break;
     default:
       fprintf(stderr,"dg: unknown tag %d (corrupt file, or written by a newer dlsh?)\n", c);
       status = DF_ABORT;
@@ -2958,6 +3107,11 @@ void dguBufferToAscii(unsigned char *vbuf, int bufsize, FILE *OutFP)
       fprintf(OutFP, "END:   %s\n", dgGetCurrentStructName());
       dgPopStruct();
       advance_bytes = 0;
+      continue;
+    }
+    if (c == DG_EXT_TAG) {
+      advance_bytes = vread_extension(&vbuf[i], bufsize - i, OutFP);
+      if (advance_bytes < 0) return;
       continue;
     }
     switch (dtype = dgGetDataType(c)) {
@@ -3033,6 +3187,10 @@ void dguFileToAscii(FILE *InFP, FILE *OutFP)
     if (c == END_STRUCT) {
       fprintf(OutFP, "END:   %s\n", dgGetCurrentStructName());
       dgPopStruct();
+      continue;
+    }
+    if (c == DG_EXT_TAG) {
+      read_extension(InFP, OutFP);
       continue;
     }
     switch (dtype = dgGetDataType(c)) {
